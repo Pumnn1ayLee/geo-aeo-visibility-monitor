@@ -107,21 +107,26 @@ export function buildSourceInput(config, query, market, engine) {
 }
 
 export async function readInputFromEnvironment({ fetchImpl = globalThis.fetch, readFile = null } = {}) {
-  const inline = process.env.GEO_INPUT_JSON ?? process.env.APIFY_INPUT;
+  const inline = process.env.GEO_INPUT_JSON ?? process.env.APIFY_INPUT ?? process.env.APIFY_ACTOR_INPUT;
   if (inline) return JSON.parse(inline);
 
   const inputFile = process.env.GEO_INPUT_FILE;
   if (inputFile && readFile) return JSON.parse(await readFile(inputFile, 'utf8'));
 
   const token = process.env.APIFY_API_TOKEN ?? process.env.APIFY_TOKEN;
-  const storeId = process.env.APIFY_INPUT_KEY_VALUE_STORE_ID ?? process.env.APIFY_DEFAULT_KEY_VALUE_STORE_ID;
-  if (token && storeId && fetchImpl) {
+  const storeIds = [...new Set([
+    process.env.APIFY_INPUT_KEY_VALUE_STORE_ID,
+    process.env.APIFY_DEFAULT_KEY_VALUE_STORE_ID,
+  ].filter(Boolean))];
+  if (token && storeIds.length && fetchImpl) {
     const baseUrl = process.env.APIFY_API_BASE_URL ?? 'https://api.apify.com';
-    const response = await fetchImpl(`${baseUrl}/v2/key-value-stores/${encodeURIComponent(storeId)}/records/INPUT`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error(`Unable to read Apify INPUT record (${response.status})`);
-    return response.json();
+    for (const storeId of storeIds) {
+      const response = await fetchImpl(`${baseUrl}/v2/key-value-stores/${encodeURIComponent(storeId)}/records/INPUT`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (response.ok) return response.json();
+      if (response.status !== 404) throw new Error(`Unable to read Apify INPUT record (${response.status})`);
+    }
   }
 
   if (readFile && process.env.GEO_USE_EXAMPLE === '1') {
@@ -131,5 +136,5 @@ export async function readInputFromEnvironment({ fetchImpl = globalThis.fetch, r
       // The helpful error below is preferable when the example file is absent.
     }
   }
-  throw new Error('No input found. Set GEO_INPUT_JSON, GEO_INPUT_FILE, or run inside Apify with an INPUT record.');
+  throw new Error('No input found. Open the Actor Input tab and provide brand and queries, or set GEO_INPUT_JSON/GEO_INPUT_FILE.');
 }

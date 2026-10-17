@@ -34,7 +34,10 @@
         "type": "array",
         "description": "Questions to ask search and AI search engines.",
         "editor": "stringList",
-        "default": []
+        "default": [
+          "best project management software for small teams",
+          "Example brand alternatives"
+        ]
       },
       "markets": {
         "title": "Markets",
