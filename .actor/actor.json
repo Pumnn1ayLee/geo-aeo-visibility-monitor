@@ -93,6 +93,7 @@
         "title": "History key",
         "type": "string",
         "description": "Key-value store record used for the previous-run comparison.",
+        "editor": "textfield",
         "default": "GEO_HISTORY"
       },
       "includeRawSource": {
