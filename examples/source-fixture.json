@@ -1,0 +1,40 @@
+{
+  "best project management software for small teams": [
+    {
+      "organicResults": [
+        {
+          "position": 1,
+          "title": "Example brand review",
+          "url": "https://example.com/product",
+          "snippet": "Example brand is a strong choice for small teams."
+        },
+        {
+          "position": 2,
+          "title": "Competitor One comparison",
+          "url": "https://competitor.example/review",
+          "snippet": "Competitor One is another option."
+        }
+      ],
+      "aiOverview": {
+        "text": "Example brand and Competitor One are commonly considered.",
+        "citations": ["https://example.com/product", "https://review.example.org/guide"]
+      }
+    }
+  ],
+  "Example brand alternatives": [
+    {
+      "organicResults": [
+        {
+          "position": 1,
+          "title": "Competitor One alternatives",
+          "url": "https://competitor.example/alternatives",
+          "snippet": "Competitor One appears in this alternatives list."
+        }
+      ],
+      "aiOverview": {
+        "text": "Competitor One is mentioned, while Example brand is absent.",
+        "citations": ["https://review.example.org/guide"]
+      }
+    }
+  ]
+}

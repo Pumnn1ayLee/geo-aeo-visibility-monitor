@@ -1,0 +1,106 @@
+{
+  "actorSpecification": 1,
+  "name": "geo-visibility-monitor",
+  "title": "GEO / AEO Visibility Monitor",
+  "description": "Monitor brand visibility, citations, competitors, and changes across AI search and web search results.",
+  "version": "0.1",
+  "dockerfile": "./Dockerfile",
+  "output": "./output_schema.json",
+  "input": {
+    "title": "GEO / AEO monitor input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+      "brand": {
+        "title": "Brand",
+        "type": "object",
+        "description": "Brand to monitor. Use name, aliases, and owned domains.",
+        "editor": "json",
+        "default": {
+          "name": "Example brand",
+          "aliases": [],
+          "domains": []
+        }
+      },
+      "competitors": {
+        "title": "Competitors",
+        "type": "array",
+        "description": "Competitor names, aliases, and domains.",
+        "editor": "json",
+        "default": []
+      },
+      "queries": {
+        "title": "Queries",
+        "type": "array",
+        "description": "Questions to ask search and AI search engines.",
+        "editor": "stringList",
+        "default": []
+      },
+      "markets": {
+        "title": "Markets",
+        "type": "array",
+        "description": "Market objects with countryCode, languageCode, and optional location.",
+        "editor": "json",
+        "default": [
+          {
+            "countryCode": "US",
+            "languageCode": "en"
+          }
+        ]
+      },
+      "engines": {
+        "title": "Source Actors",
+        "type": "array",
+        "description": "Apify source Actors to run. The default uses Apify Google Search Results Scraper.",
+        "editor": "json",
+        "default": [
+          {
+            "name": "google",
+            "actorId": "apify/google-search-scraper"
+          }
+        ]
+      },
+      "sourceActorInput": {
+        "title": "Source Actor options",
+        "type": "object",
+        "description": "Optional source Actor fields. For Google Search, use aiOverview, aiModeSearch, perplexitySearch, chatGptSearch, copilotSearch, or geminiSearch to enable AEO/GEO data.",
+        "editor": "json",
+        "default": {}
+      },
+      "maxQueries": {
+        "title": "Maximum queries",
+        "type": "integer",
+        "description": "Hard limit protecting the run from accidental cost growth.",
+        "default": 50,
+        "minimum": 1,
+        "maximum": 100
+      },
+      "maxResultsPerQuery": {
+        "title": "Maximum results per query",
+        "type": "integer",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 100
+      },
+      "maxTotalChargeUsd": {
+        "title": "Maximum source Actor charge",
+        "type": "number",
+        "description": "Optional per-source-run Apify charge cap.",
+        "minimum": 0
+      },
+      "historyKey": {
+        "title": "History key",
+        "type": "string",
+        "description": "Key-value store record used for the previous-run comparison.",
+        "default": "GEO_HISTORY"
+      },
+      "includeRawSource": {
+        "title": "Include raw source data",
+        "type": "boolean",
+        "description": "Include the source record in each output item. This increases dataset size.",
+        "default": false
+      }
+    },
+    "required": ["brand", "queries"]
+  }
+}

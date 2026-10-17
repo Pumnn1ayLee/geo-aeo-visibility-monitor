@@ -1,0 +1,41 @@
+{
+  "brand": {
+    "name": "Example brand",
+    "aliases": ["Example"],
+    "domains": ["example.com"]
+  },
+  "competitors": [
+    {
+      "name": "Competitor One",
+      "domains": ["competitor.example"]
+    }
+  ],
+  "queries": [
+    "best project management software for small teams",
+    "Example brand alternatives"
+  ],
+  "markets": [
+    {
+      "countryCode": "US",
+      "languageCode": "en"
+    }
+  ],
+  "engines": [
+    {
+      "name": "google",
+      "actorId": "apify/google-search-scraper"
+    }
+  ],
+  "sourceActorInput": {
+    "aiOverview": {
+      "scrapeFullAiOverview": true
+    },
+    "aiModeSearch": {
+      "enableAiMode": true
+    }
+  },
+  "maxQueries": 50,
+  "maxResultsPerQuery": 10,
+  "maxTotalChargeUsd": 2,
+  "historyKey": "GEO_HISTORY"
+}

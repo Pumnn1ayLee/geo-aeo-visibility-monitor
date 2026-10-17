@@ -1,0 +1,15 @@
+{
+  "name": "geo-visibility-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Apify Actor for GEO/AEO visibility monitoring and competitive intelligence.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test",
+    "lint": "node --check src/index.js && node --check src/input.js && node --check src/analysis.js && node --check src/report.js && node --check src/source-client.js && node --check src/storage.js"
+  }
+}
