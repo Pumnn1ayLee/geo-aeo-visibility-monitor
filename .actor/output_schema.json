@@ -4,6 +4,7 @@
   "description": "Dataset items contain visibility snapshots, one aggregate report summary, and source errors for partial failures.",
   "properties": {
     "defaultDataset": {
+      "type": "string",
       "title": "Visibility snapshots and report",
       "description": "Open the default Dataset to inspect query-level snapshots, the aggregate report_summary, and any source_error items.",
       "template": "{{links.apiDefaultDatasetUrl}}/items"
