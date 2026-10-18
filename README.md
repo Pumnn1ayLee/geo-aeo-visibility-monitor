@@ -41,6 +41,12 @@ Remove `GEO_USE_EXAMPLE` when testing Console input. Setting it to `1` explicitl
 
 Every successful snapshot contains the query, market, engine, overall and AI-response brand mention flags, owned-citation flag, best detected position, visibility score, evidence confidence, competitor mentions, citations, and a suggested next action. Raw source records are omitted by default; set `includeRawSource` to `true` when audit-level reproducibility is needed.
 
+`aiResponses` separates AI Overview (`aiOverview`) and AI Mode (`aiModeResult`) with their own brand mentions, competitors, and source lists. `aiCitations` contains AI source citations; `aiAttachedSources` contains links that the source labels `section: "attached"`. Attached links do not count toward `aiOwnedCitation` or citation totals. The combined `citations` list includes search result URLs and AI citations, while excluding query/navigation URLs and snapshot metadata. `bestPosition` measures a matching search result's position, not the order of brand recommendations in AI prose.
+
+Brand mentions are detected in result text and AI answer text, excluding the user's query, related queries, source titles, and runtime metadata. A missing AI answer yields `brandMentionedInAiResponse: null`; a captured answer without the brand yields `false`. `aiOwnedCitationRate` reports the rate of snapshots with brand-owned AI citations separately from brand mentions. These are observed references and text matches, not an assessment of endorsement or citation quality. The visibility score is a heuristic, not a Google metric.
+
+Analysis version 2 corrects AI Mode detection and citation classification. Snapshots include `analysisVersion: 2`; historical score deltas require matching analysis versions. The test fixture in `tests/fixtures/google-ai-mode.json` is a reduced, sanitized representation of a successful source response and contains no signed snapshot links.
+
 ## Development checks
 
 ```powershell

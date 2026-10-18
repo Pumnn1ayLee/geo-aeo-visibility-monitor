@@ -1,0 +1,56 @@
+[
+  {
+    "searchQuery": {
+      "term": "best tools for team documentation and knowledge management",
+      "url": "https://www.google.com/search?q=best+tools+for+team+documentation+and+knowledge+management"
+    },
+    "url": "https://www.google.com/search?q=best+tools+for+team+documentation+and+knowledge+management",
+    "relatedQueries": [
+      { "title": "Notion and ClickUp alternatives", "url": "https://www.google.com/search?q=Notion+ClickUp" }
+    ],
+    "organicResults": [
+      {
+        "position": 5,
+        "title": "Knowledge management software comparison",
+        "url": "https://www.eesel.ai/blog/best-knowledge-management-software",
+        "description": "Think tools like Confluence or Notion."
+      },
+      {
+        "position": 6,
+        "title": "Knowledge management for teams",
+        "url": "https://review.example.org/knowledge-management",
+        "description": "Tools like Notion, Airtable, and Confluence provide an internal wiki."
+      }
+    ],
+    "peopleAlsoAsk": [{ "question": "What is Notion?", "answer": null }],
+    "aiOverview": {
+      "type": "live",
+      "content": "Top Team Documentation & Knowledge Bases1. NotionBest for: Flexible team wikis.2. ConfluenceBest for: Structured documentation for large organizations.",
+      "sources": [
+        { "url": "https://www.zendesk.com/service/knowledge/knowledge-management-tools/" },
+        { "url": "https://tixio.io/blog/team-collaboration-tools-complete-guide" },
+        { "url": "https://thedigitalprojectmanager.com/tools/best-process-documentation-software/" }
+      ]
+    },
+    "aiModeResult": {
+      "text": "Notion combines team wikis and relational databases. ClickUp combines tasks and documentation. Other options include Confluence, Trainual, BookStack, Document360, Help Scout Docs, Guru, and Bloomfire.",
+      "sources": [
+        { "id": 1, "title": "Gartner", "url": "https://www.gartner.com/", "section": "citations" },
+        { "id": 2, "title": "Notion", "url": "https://www.notion.so/", "section": "attached" },
+        { "id": 3, "title": "Confluence", "url": "https://www.atlassian.com/software/confluence", "section": "attached" },
+        { "id": 4, "title": "ClickUp", "url": "https://clickup.com/", "section": "attached" },
+        { "id": 5, "title": "Trainual", "url": "https://trainual.com/", "section": "attached" },
+        { "id": 6, "title": "BookStack", "url": "https://www.bookstackapp.com/", "section": "attached" },
+        { "id": 7, "title": "Document360", "url": "https://document360.com/", "section": "attached" },
+        { "id": 8, "title": "Help Scout Docs", "url": "https://www.helpscout.com/", "section": "attached" },
+        { "id": 9, "title": "Guru", "url": "https://www.getguru.com/", "section": "attached" },
+        { "id": 10, "title": "Bloomfire", "url": "https://www.bloomfire.com/", "section": "attached" }
+      ],
+      "query": "best tools for team documentation and knowledge management",
+      "provider": "Google",
+      "engine": "AI Mode"
+    },
+    "customData": { "brand": "Notion" },
+    "htmlSnapshotUrl": "https://api.apify.com/v2/key-value-stores/example-store/records/snapshot.html"
+  }
+]

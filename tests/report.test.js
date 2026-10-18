@@ -26,3 +26,27 @@ test('builds aggregate report and historical score deltas', () => {
   assert.equal(report.changes[0].changed, true);
   assert.match(report.changes[0].key, /^google\|US\|en\|best tool$/);
 });
+
+test('keeps AI brand mention and owned-citation rates separate', () => {
+  const report = buildReport({
+    snapshots: [
+      { ...base, aiOwnedCitation: false },
+      { ...base, query: 'another query', brandMentionedInAiResponse: false, aiOwnedCitation: true },
+      { ...base, query: 'search only', brandMentionedInAiResponse: null, aiOwnedCitation: null },
+    ],
+    brand: { name: 'Example' }, competitors: [],
+  });
+  assert.equal(report.aiBrandMentionRate, 50);
+  assert.equal(report.aiOwnedCitationRate, 50);
+});
+
+test('does not compare scores produced by different analysis versions', () => {
+  const report = buildReport({
+    snapshots: [{ ...base, analysisVersion: 2 }],
+    previousSnapshots: [{ ...base, visibilityScore: 100 }],
+    brand: { name: 'Example' }, competitors: [],
+  });
+  assert.equal(report.changes[0].previousVisibilityScore, null);
+  assert.equal(report.changes[0].scoreDelta, null);
+  assert.equal(report.changes[0].changed, false);
+});

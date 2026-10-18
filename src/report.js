@@ -10,7 +10,8 @@ function average(values) {
 export function buildReport({ snapshots, errors = [], previousSnapshots = [], brand, competitors }) {
   const previousByKey = new Map(previousSnapshots.map((item) => [keyOf(item), item]));
   const changes = snapshots.map((current) => {
-    const previous = previousByKey.get(keyOf(current));
+    const candidate = previousByKey.get(keyOf(current));
+    const previous = candidate?.analysisVersion === current.analysisVersion ? candidate : undefined;
     return {
       key: keyOf(current),
       previousVisibilityScore: previous?.visibilityScore ?? null,
@@ -28,9 +29,12 @@ export function buildReport({ snapshots, errors = [], previousSnapshots = [], br
   const mentionRate = snapshots.length ? Math.round((snapshots.filter((item) => item.brandMentioned).length / snapshots.length) * 100) : 0;
   const citationRate = snapshots.length ? Math.round((snapshots.filter((item) => item.ownedCitation).length / snapshots.length) * 100) : 0;
   const recommendations = [...new Set(snapshots.map((item) => item.recommendation).filter(Boolean))].slice(0, 30);
+  const aiSnapshots = snapshots.filter((item) => typeof item.brandMentionedInAiResponse === 'boolean');
+  const aiCitationSnapshots = snapshots.filter((item) => typeof item.aiOwnedCitation === 'boolean');
 
   return {
     type: 'report_summary',
+    analysisVersion: 2,
     capturedAt: new Date().toISOString(),
     status: errors.length && !snapshots.length ? 'failed' : errors.length ? 'partial' : 'succeeded',
     brand: brand.name,
@@ -39,8 +43,11 @@ export function buildReport({ snapshots, errors = [], previousSnapshots = [], br
     errorCount: errors.length,
     visibilityScore: average(snapshots.map((item) => item.visibilityScore)),
     brandMentionRate: mentionRate,
-    aiBrandMentionRate: snapshots.filter((item) => item.brandMentionedInAiResponse !== null).length
-      ? Math.round((snapshots.filter((item) => item.brandMentionedInAiResponse === true).length / snapshots.filter((item) => item.brandMentionedInAiResponse !== null).length) * 100)
+    aiBrandMentionRate: aiSnapshots.length
+      ? Math.round((aiSnapshots.filter((item) => item.brandMentionedInAiResponse).length / aiSnapshots.length) * 100)
+      : null,
+    aiOwnedCitationRate: aiCitationSnapshots.length
+      ? Math.round((aiCitationSnapshots.filter((item) => item.aiOwnedCitation).length / aiCitationSnapshots.length) * 100)
       : null,
     ownedCitationRate: citationRate,
     competitorMentionRate: snapshots.length ? Math.round((snapshots.filter((item) => item.competitorCount > 0).length / snapshots.length) * 100) : 0,

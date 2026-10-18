@@ -1,17 +1,24 @@
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
-const AI_FIELD_NAMES = new Set([
-  'aioverview',
-  'aimodesearch',
-  'perplexitysearch',
-  'chatgptsearch',
-  'copilotsearch',
-  'geminisearch',
-  'airesponsetext',
-  'airesponse',
-  'answer',
-  'response',
+const AI_FIELDS = new Map([
+  ['aioverview', 'ai_overview'],
+  ['aimoderesult', 'ai_mode'],
+  ['aimodesearch', 'ai_mode'],
+  ['perplexitysearch', 'perplexity'],
+  ['chatgptsearch', 'chatgpt'],
+  ['copilotsearch', 'copilot'],
+  ['geminisearch', 'gemini'],
+  ['airesponsetext', 'generic'],
+  ['airesponse', 'generic'],
+  ['answer', 'generic'],
+  ['response', 'generic'],
 ]);
 const AI_TEXT_KEYS = new Set(['text', 'answer', 'response', 'content', 'markdown', 'summary', 'snippet', 'result']);
+const SEARCH_RESULT_FIELDS = ['organicResults', 'paidResults', 'paidProducts', 'suggestedResults'];
+const NON_AI_FIELDS = new Set([
+  ...SEARCH_RESULT_FIELDS.map((field) => field.toLowerCase()),
+  'searchquery', 'relatedqueries', 'peoplealsoask', 'customdata',
+  'sources', 'citations', 'references', 'htmlsnapshoturl', 'url',
+]);
 
 function clamp(value, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
@@ -37,14 +44,6 @@ function domainOf(url) {
   }
 }
 
-function valuesToText(value, depth = 0) {
-  if (depth > 8 || value == null) return '';
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return value.slice(0, 200).map((item) => valuesToText(item, depth + 1)).join(' ');
-  if (typeof value === 'object') return Object.entries(value).slice(0, 200).map(([key, item]) => `${key}: ${valuesToText(item, depth + 1)}`).join(' ');
-  return '';
-}
-
 function collectUrls(value, output = new Set(), depth = 0) {
   if (depth > 8 || value == null) return output;
   if (typeof value === 'string') {
@@ -60,14 +59,18 @@ function collectUrls(value, output = new Set(), depth = 0) {
   return output;
 }
 
-function collectNamedText(value, output = [], depth = 0) {
+function collectAiBlocks(value, output = [], depth = 0) {
   if (depth > 8 || value == null) return output;
   if (Array.isArray(value)) {
-    value.slice(0, 200).forEach((item) => collectNamedText(item, output, depth + 1));
+    value.slice(0, 200).forEach((item) => collectAiBlocks(item, output, depth + 1));
   } else if (typeof value === 'object') {
     for (const [key, item] of Object.entries(value).slice(0, 200)) {
-      if (AI_FIELD_NAMES.has(key.toLowerCase())) output.push(extractAiText(item));
-      collectNamedText(item, output, depth + 1);
+      const field = key.toLowerCase();
+      if (AI_FIELDS.has(field)) {
+        if (item != null) output.push({ sourceField: key, channel: AI_FIELDS.get(field), value: item });
+      } else if (!NON_AI_FIELDS.has(field)) {
+        collectAiBlocks(item, output, depth + 1);
+      }
     }
   }
   return output;
@@ -86,35 +89,88 @@ function extractAiText(value, depth = 0) {
   return '';
 }
 
-function collectPositions(value, terms, output = [], depth = 0) {
-  if (depth > 8 || value == null) return output;
-  if (Array.isArray(value)) {
-    value.slice(0, 200).forEach((item) => collectPositions(item, terms, output, depth + 1));
-    return output;
+function collectSourceLinks(value, citations, attachedSources, attached = false, depth = 0) {
+  if (depth > 8 || value == null) return;
+  if (typeof value === 'string') {
+    collectUrls(value, attached ? attachedSources : citations);
+    return;
   }
-  if (typeof value !== 'object') return output;
-
-  const text = valuesToText(value, 1).toLowerCase();
-  if (terms.some((term) => text.includes(term))) {
-    for (const key of ['position', 'rank', 'index', 'order']) {
-      const number = Number(value[key]);
-      if (Number.isFinite(number) && number > 0) output.push(number);
+  if (Array.isArray(value)) {
+    value.slice(0, 200).forEach((item) => collectSourceLinks(item, citations, attachedSources, attached, depth + 1));
+    return;
+  }
+  if (typeof value === 'object') {
+    const isAttached = attached || String(value.section ?? '').toLowerCase() === 'attached';
+    for (const [key, item] of Object.entries(value).slice(0, 200)) {
+      if (['url', 'href', 'link'].includes(key.toLowerCase())) {
+        collectUrls(item, isAttached ? attachedSources : citations);
+      } else if (item && typeof item === 'object') {
+        collectSourceLinks(item, citations, attachedSources, isAttached, depth + 1);
+      }
     }
   }
-  Object.values(value).slice(0, 200).forEach((item) => collectPositions(item, terms, output, depth + 1));
-  return output;
+}
+
+function searchDocuments(records) {
+  const output = [];
+  for (const record of records) {
+    if (!record || typeof record !== 'object') continue;
+    for (const field of SEARCH_RESULT_FIELDS) {
+      if (Array.isArray(record[field])) output.push(...record[field].slice(0, 200));
+    }
+    if (Array.isArray(record.peopleAlsoAsk)) {
+      for (const item of record.peopleAlsoAsk.slice(0, 200)) {
+        if (typeof item.answer === 'string' && item.answer.trim()) output.push({ answer: item.answer, url: item.url });
+      }
+    }
+    // An unwrapped result is evidence; a SERP envelope's query URL is metadata.
+    if (!record.searchQuery && !SEARCH_RESULT_FIELDS.some((field) => field in record)
+      && (typeof record.title === 'string' || typeof record.snippet === 'string' || typeof record.description === 'string')) {
+      output.push(record);
+    }
+  }
+  return output.filter((item) => item && typeof item === 'object');
+}
+
+function documentText(document) {
+  return ['title', 'websiteTitle', 'description', 'snippet', 'text', 'content', 'answer', 'url']
+    .map((key) => typeof document[key] === 'string' ? document[key] : '')
+    .join(' ');
+}
+
+function hasMention(text, terms) {
+  // Rendered AI snippets can join a brand and a heading, e.g. "NotionBest for".
+  const spacedText = text.replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2');
+  return terms.some((term) => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`(?<![\\p{Script=Latin}\\p{N}_])${escaped}(?![\\p{Script=Latin}\\p{N}_])`, 'iu');
+    if (pattern.test(text)) return true;
+    const spacedTerm = term.replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?<![\\p{Script=Latin}\\p{N}_])${spacedTerm}(?![\\p{Script=Latin}\\p{N}_])`, 'iu').test(spacedText);
+  });
+}
+
+function citationList(urls, brand) {
+  return [...urls].map((url) => {
+    const domain = domainOf(url);
+    return {
+      url,
+      domain,
+      ownedByBrand: (brand.domains ?? []).some((owned) => domain === owned || domain?.endsWith(`.${owned}`)),
+    };
+  });
 }
 
 function asTerms(entity) {
   return [entity.name, ...(entity.aliases ?? []), ...(entity.domains ?? [])]
-    .map((term) => term.toLowerCase().trim())
+    .map((term) => term.trim())
     .filter(Boolean);
 }
 
 export function extractRecords(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
-  for (const key of ['items', 'data', 'results', 'organicResults']) {
+  for (const key of ['items', 'data', 'results']) {
     if (Array.isArray(payload[key])) return payload[key];
   }
   return [payload];
@@ -130,30 +186,64 @@ function recommendationFor({ brandMentioned, ownedCitation, competitorMentions, 
 export function analyzeSnapshot({ query, market, engine, brand, competitors, records, includeRawSource = false }) {
   const brandTerms = asTerms(brand);
   const competitorTerms = competitors.map((competitor) => ({ entity: competitor, terms: asTerms(competitor) }));
-  const text = valuesToText(records).slice(0, 500_000).toLowerCase();
-  const aiText = collectNamedText(records).join(' ').slice(0, 250_000).toLowerCase();
-  const urls = [...collectUrls(records)];
-  const domains = new Set(urls.map(domainOf).filter(Boolean));
-  const brandMentioned = brandTerms.some((term) => text.includes(term));
-  const brandMentionedInAiResponse = aiText ? brandTerms.some((term) => aiText.includes(term)) : null;
-  const competitorMentions = competitorTerms.filter(({ terms }) => terms.some((term) => text.includes(term))).map(({ entity }) => entity.name);
-  const competitorsInAiResponse = aiText
-    ? competitorTerms.filter(({ terms }) => terms.some((term) => aiText.includes(term))).map(({ entity }) => entity.name)
-    : [];
-  const ownedCitation = urls.some((url) => {
-    const domain = domainOf(url);
-    return domain && (brand.domains ?? []).some((owned) => domain === owned || domain.endsWith(`.${owned}`));
+  const documents = searchDocuments(records);
+  const aiBlocks = collectAiBlocks(records);
+  const aiTexts = aiBlocks.map(({ value }) => extractAiText(value).slice(0, 250_000).trim());
+  const aiText = aiTexts.join(' ').slice(0, 500_000);
+  const text = [...documents.map(documentText), aiText].join(' ').slice(0, 1_000_000);
+  const aiResponses = aiBlocks.map(({ sourceField, channel, value }, index) => {
+    const responseText = aiTexts[index];
+    const responsePresent = Boolean(responseText);
+    const citations = new Set();
+    const attachedSources = new Set();
+    collectUrls(responseText, citations);
+    if (value && typeof value === 'object') {
+      for (const [key, entries] of Object.entries(value)) {
+        if (['sources', 'citations', 'references'].includes(key.toLowerCase())) {
+          collectSourceLinks(entries, citations, attachedSources);
+        }
+      }
+    }
+    const sources = citationList(citations, brand);
+    const attached = citationList(attachedSources, brand);
+    return {
+      channel,
+      sourceField,
+      responsePresent,
+      brandMentioned: responsePresent ? hasMention(responseText, brandTerms) : null,
+      competitorMentions: competitorTerms.filter(({ terms }) => hasMention(responseText, terms)).map(({ entity }) => entity.name),
+      ownedCitation: sources.some((item) => item.ownedByBrand),
+      citationCount: sources.length,
+      citations: sources,
+      ownedAttachedSource: attached.some((item) => item.ownedByBrand),
+      attachedSourceCount: attached.length,
+      attachedSources: attached,
+    };
   });
-  const positions = collectPositions(records, brandTerms);
+  const aiCitations = citationList(new Set(aiResponses.flatMap((item) => item.citations.map(({ url }) => url))), brand);
+  const aiAttachedSources = citationList(new Set(aiResponses.flatMap((item) => item.attachedSources.map(({ url }) => url))), brand);
+  const searchUrls = new Set();
+  for (const document of documents) collectUrls(document.url, searchUrls);
+  const citations = citationList(new Set([...searchUrls, ...aiCitations.map(({ url }) => url)]), brand);
+  const domains = new Set(citations.map(({ domain }) => domain).filter(Boolean));
+  const brandMentioned = hasMention(text, brandTerms);
+  const brandMentionedInAiResponse = aiText.trim() ? hasMention(aiText, brandTerms) : null;
+  const competitorMentions = competitorTerms.filter(({ terms }) => hasMention(text, terms)).map(({ entity }) => entity.name);
+  const competitorsInAiResponse = [...new Set(aiResponses.flatMap((item) => item.competitorMentions))];
+  const ownedCitation = citations.some((item) => item.ownedByBrand);
+  const aiOwnedCitation = aiResponses.length ? aiCitations.some((item) => item.ownedByBrand) : null;
+  const positions = documents.filter((item) => hasMention(documentText(item), brandTerms))
+    .flatMap((item) => ['position', 'rank', 'index', 'order'].map((key) => Number(item[key])))
+    .filter((position) => Number.isFinite(position) && position > 0);
   const bestPosition = positions.length ? Math.min(...positions) : null;
   const rankBonus = bestPosition == null ? 0 : bestPosition <= 3 ? 15 : bestPosition <= 10 ? 8 : 3;
   const visibilityScore = clamp((brandMentioned ? 60 : 0) + (ownedCitation ? 25 : 0) + rankBonus);
-  const evidenceConfidence = clamp((brandMentioned ? 40 : 0) + (urls.length ? 30 : 0) + (bestPosition != null ? 30 : 0));
-  const citationList = urls.map((url) => ({ url, domain: domainOf(url), ownedByBrand: (brand.domains ?? []).some((owned) => domainOf(url) === owned || domainOf(url)?.endsWith(`.${owned}`)) }));
+  const evidenceConfidence = clamp((brandMentioned ? 40 : 0) + (citations.length ? 30 : 0) + (bestPosition != null ? 30 : 0));
   const recommendation = recommendationFor({ brandMentioned, ownedCitation, competitorMentions, query });
 
   const result = {
     type: 'visibility_snapshot',
+    analysisVersion: 2,
     capturedAt: new Date().toISOString(),
     query,
     market,
@@ -161,6 +251,13 @@ export function analyzeSnapshot({ query, market, engine, brand, competitors, rec
     brand: brand.name,
     brandMentioned,
     brandMentionedInAiResponse,
+    aiResponses,
+    aiResponseCount: aiResponses.filter((item) => item.responsePresent).length,
+    aiOwnedCitation,
+    aiCitationCount: aiCitations.length,
+    aiCitations,
+    aiAttachedSourceCount: aiAttachedSources.length,
+    aiAttachedSources,
     ownedCitation,
     bestPosition,
     visibilityScore,
@@ -168,9 +265,9 @@ export function analyzeSnapshot({ query, market, engine, brand, competitors, rec
     competitorMentions,
     competitorsInAiResponse,
     competitorCount: competitorMentions.length,
-    citationCount: urls.length,
+    citationCount: citations.length,
     citedDomains: [...domains],
-    citations: citationList,
+    citations,
     recommendation,
     sourceRecordCount: records.length,
   };
