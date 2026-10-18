@@ -50,3 +50,16 @@ test('does not compare scores produced by different analysis versions', () => {
   assert.equal(report.changes[0].scoreDelta, null);
   assert.equal(report.changes[0].changed, false);
 });
+
+test('reports AI mention/citation and competitor gains/losses without converting missing AI data to false', () => {
+  const previous = { ...base, analysisVersion: 2, brandMentionedInAiResponse: true, aiOwnedCitation: false, competitorMentions: ['Old'], citedDomains: ['old.org'], baselineRunId: 'baseline' };
+  const report = buildReport({ snapshots: [{ ...previous, brandMentionedInAiResponse: false, aiOwnedCitation: true, competitorMentions: ['New'], citedDomains: ['new.org'] }], previousSnapshots: [previous], brand: { name: 'Example' }, competitors: [] });
+  assert.equal(report.changes[0].aiMentionChange, 'lost');
+  assert.equal(report.changes[0].aiOwnedCitationChange, 'gained');
+  assert.deepEqual(report.changes[0].competitorsGained, ['New']);
+  assert.deepEqual(report.changes[0].competitorsLost, ['Old']);
+  assert.equal(report.changes[0].changed, true);
+  const missing = buildReport({ snapshots: [{ ...previous, brandMentionedInAiResponse: null, aiOwnedCitation: null }], previousSnapshots: [previous], brand: { name: 'Example' }, competitors: [] });
+  assert.equal(missing.changes[0].aiMentionChange, null);
+  assert.equal(missing.changes[0].aiOwnedCitationChange, null);
+});

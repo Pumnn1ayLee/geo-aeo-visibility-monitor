@@ -37,5 +37,10 @@
   "maxQueries": 50,
   "maxResultsPerQuery": 10,
   "maxTotalChargeUsd": 2,
+  "maxSourceBudgetUsd": 2,
+  "maxSourceRuns": 20,
+  "monitorId": "example-us",
+  "historyEnabled": true,
+  "historyRetentionDays": 90,
   "historyKey": "GEO_HISTORY"
 }

@@ -23,11 +23,11 @@ $env:GEO_OUTPUT_DIR = "$PWD/test-output"
 npm start
 ```
 
-The run writes `test-output/dataset.jsonl` and `test-output/history.json`. Delete that directory after local verification.
+The run writes `test-output/dataset.jsonl`, keyed checkpoints under `test-output/records/`, and persistent history under `test-output/named-stores/`. Keep that directory for a second local run to verify history; delete it after verification. Fixtures report zero source charges and make no paid calls.
 
 ## Run on Apify
 
-Build and run the Actor with an Apify token. The runtime reads the platform `INPUT` record, invokes the configured source Actor with the same token, writes dataset items to the default dataset, and stores the previous snapshot in the default key-value store.
+Build and run the Actor with an Apify token. The runtime reads the platform `INPUT` record, invokes the configured source Actor with the same token, writes dataset items to the default dataset, and stores checkpoints in the run's default key-value store. Cross-run history uses a separate named store in the running customer's account. Normal limited Actor permissions support creating storage and using storage created by earlier runs; full permissions are not required. Storage authorization failures are surfaced before launching paid sources.
 
 The runtime supports the current `ACTOR_DEFAULT_KEY_VALUE_STORE_ID`, `ACTOR_INPUT_KEY`, and `ACTOR_DEFAULT_DATASET_ID` variables, as well as legacy `APIFY_*` names. Input defaults to the `INPUT` record when the platform does not set a record key.
 
@@ -35,7 +35,40 @@ For a small live smoke test, paste [`examples/live-input.json`](examples/live-in
 
 Remove `GEO_USE_EXAMPLE` when testing Console input. Setting it to `1` explicitly allows the bundled example as a fallback when no input is found, which can hide an input-delivery problem. If a run fails before producing output, inspect that run's **Log** and **Input** tabs. The missing-input error distinguishes missing runtime credentials, missing store IDs, and a missing input record.
 
-`maxTotalChargeUsd` is forwarded to each source Actor run. Use it together with `maxQueries` and `maxResultsPerQuery` to keep source costs bounded.
+## Persistent history
+
+Use a stable `monitorId` such as `notion-us` for recurring runs. `historyEnabled` defaults to `true`; `historyRetentionDays` defaults to 90. The Actor creates/reuses a named key-value store, `geo-history-<actor hash>`, scoped to the running Apify account. The report exposes its name and ID in `history`. It does not use a global developer-owned store.
+
+Each completed run writes its own record. There is no shared mutable "latest" pointer, so concurrent runs cannot overwrite each other's history. Each query uses the latest compatible observation completed before the current run started. Compatibility includes the brand and aliases/domains, competitors, query, country, language, location, engine/source Actor, actual source input (including AI settings), and analysis version. Adding queries preserves existing query baselines. Changing measurement settings starts a new baseline.
+
+History retains successful observations from partial runs. Failed, empty, unresolved, and budget-skipped tasks never replace valid baselines. History omits `rawSource`, including when raw source output is enabled. The first compatible run has `scoreDelta: null` and `baselineRunId: null`. Later `changes` entries include baseline run/time, score delta, brand/AI mention gained/lost, AI owned-citation gained/lost, competitor changes, and citation-domain changes. A missing AI answer remains unknown rather than becoming a false observation.
+
+`historyKey` remains a supported namespace, combined with `monitorId`. Existing run-local history arrays are not imported because their brand and collection configuration cannot be verified. The first run after this upgrade establishes a fresh baseline.
+
+Expired records are deleted only for the current monitor namespace when it next runs. Named stores otherwise persist indefinitely; an inactive project's history is not cleaned on a background timer. Deleting that named store removes its history. See [Apify storage retention](https://docs.apify.com/platform/storage/key-value-store) and [limited Actor permissions](https://docs.apify.com/platform/actors/development/permissions).
+
+## Source budget and recovery
+
+| Input | Default | Meaning |
+| --- | --- | --- |
+| `maxSourceBudgetUsd` | `2` | Combined source-run budget for this monitor run. |
+| `maxTotalChargeUsd` | Remaining aggregate budget | Optional maximum for each individual source run. |
+| `maxSourceRuns` | `20` | Maximum launch attempts across all queries, markets and engines. |
+| `sourceTimeoutSeconds` | `300` | Timeout sent to the source platform run, shortened near the parent's deadline. |
+
+Sources run sequentially. Before each launch, the Actor checkpoints a reservation equal to `min(per-run cap, remaining source budget)`. It sends this amount as the source run's **API query parameter** `maxTotalChargeUsd`, together with the platform `timeout`. It never raises a cap to satisfy a source's minimum charge. Zero budget, zero per-run cap or zero source-run limit prevents new launches.
+
+Terminal source runs are accounted using the authenticated run's `usageTotalUsd`, including failed and aborted runs. Missing charges consume the full reserved allowance instead of being treated as free. No provisional running cost or separate event charge is added to `usageTotalUsd`. USD arithmetic uses integer micro-dollars; budget allowances round down and charges round up. For example, with a $0.30 aggregate budget, a $0.20 per-run cap and $0.10 actual charges, the successive caps are $0.20, $0.20 and $0.10.
+
+The aggregate budget covers the source runs launched by this monitor. This monitor's own compute, storage and traffic charges are additional. Platform billing granularity and late settlement also prevent promising an absolute cap on the entire Apify invoice. Separate concurrent monitor runs each have their own source budget; this is not an account-wide monthly spending limit. See [Apify source run cost and timeout parameters](https://docs.apify.com/api/v2/act-runs-post).
+
+`report_summary.budget` exposes known charges, reserved unknown charges, accounted charges, remaining budget, and a per-source ledger with run IDs. The report also includes planned/completed/failed/unresolved/skipped counts and `stopReason` (`budget_exhausted`, `max_source_runs`, `parent_deadline`, `ambiguous_launch`, or `source_reconciliation_required`). A budget stop preserves completed results and returns `status: "partial"`. All-source failures produce `status: "failed"` and a nonzero process exit after saving diagnostic output.
+
+Checkpoints are saved before launch, after obtaining the child run ID, after settlement, and after analysis. Resurrection of the **same Apify run** reuses its checkpoint and known child IDs instead of relaunching them. A brand-new run has a fresh budget and performs fresh measurements. Do not edit input while resurrecting an existing run. Completed output is not emitted again when its delivery checkpoint is confirmed.
+
+If a launch POST loses its response, a child may already exist. The Actor reserves its full allowance and stops with `ambiguous_launch`; it does not blindly repeat that POST. Inspect the source Actor's run list before starting another monitor run. If a known running child cannot be reconciled or aborted, the Actor stops other launches; resurrection can inspect that same child again. Local timeouts and polling errors request an abort. The child also has a platform timeout, since forced parent termination cannot guarantee cleanup code executes.
+
+Dataset delivery and checkpoint writes are separate API operations. A lost delivery acknowledgement, or reconciliation after an earlier partial report was emitted, can append duplicate/revised items. Consumers can deduplicate snapshots by `(runId, comparisonKey)` and use the latest report for a run. Source launches are still protected by the ledger. Concurrent instances of the same run ID are not supported; separate scheduled runs have separate IDs and independent history records.
 
 ## Output contract
 

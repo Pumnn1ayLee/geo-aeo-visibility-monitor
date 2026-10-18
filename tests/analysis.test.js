@@ -23,6 +23,16 @@ test('rejects non-numeric run limits', () => {
   assert.throws(() => normalizeInput({ brand: 'Example brand', queries: ['query'], maxQueries: 'many' }), /maxQueries must be a number/);
 });
 
+test('rejects unsafe budget/history limits and preserves explicit zero limits', () => {
+  for (const limits of [{ maxSourceBudgetUsd: -1 }, { maxSourceBudgetUsd: 'no' }, { maxSourceRuns: -1 }, { maxSourceRuns: 1.5 }, { historyRetentionDays: 0 }, { historyEnabled: 'false' }]) {
+    assert.throws(() => normalizeInput({ brand: 'Example', queries: ['q'], ...limits }));
+  }
+  const input = normalizeInput({ brand: 'Example', queries: ['q'], maxSourceBudgetUsd: 0, maxSourceRuns: 0, historyEnabled: false });
+  assert.equal(input.maxSourceBudgetUsd, 0);
+  assert.equal(input.maxSourceRuns, 0);
+  assert.equal(input.historyEnabled, false);
+});
+
 test('extracts records from common Actor response shapes', () => {
   assert.equal(extractRecords({ items: [{ id: 1 }] }).length, 1);
   assert.equal(extractRecords([{ id: 1 }]).length, 1);

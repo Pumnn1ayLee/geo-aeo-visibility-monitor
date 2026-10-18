@@ -1,25 +1,51 @@
 function keyOf(item) {
+  if (item.comparisonKey) return item.comparisonKey;
   const engine = typeof item.engine === 'string' ? item.engine : item.engine?.name;
-  return `${engine ?? 'unknown'}|${item.market.countryCode}|${item.market.languageCode}|${item.query}`;
+  return `${engine ?? 'unknown'}|${item.market.countryCode}|${item.market.languageCode}|${item.query}${item.market.location ? `|${item.market.location}` : ''}`;
+}
+
+function difference(current = [], previous = []) { return [...new Set(current)].filter((item) => !previous.includes(item)).sort(); }
+function transition(previous, current) {
+  return typeof previous === 'boolean' && typeof current === 'boolean' ? (previous === current ? 'unchanged' : current ? 'gained' : 'lost') : null;
 }
 
 function average(values) {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
 }
 
-export function buildReport({ snapshots, errors = [], previousSnapshots = [], brand, competitors }) {
+export function buildReport({ snapshots, errors = [], previousSnapshots = [], brand, competitors, execution = {} }) {
   const previousByKey = new Map(previousSnapshots.map((item) => [keyOf(item), item]));
   const changes = snapshots.map((current) => {
     const candidate = previousByKey.get(keyOf(current));
     const previous = candidate?.analysisVersion === current.analysisVersion ? candidate : undefined;
+    const domainsGained = previous ? difference(current.citedDomains, previous.citedDomains) : [];
+    const domainsLost = previous ? difference(previous.citedDomains, current.citedDomains) : [];
+    const competitorsGained = previous ? difference(current.competitorMentions, previous.competitorMentions) : [];
+    const competitorsLost = previous ? difference(previous.competitorMentions, current.competitorMentions) : [];
+    const aiMentionChange = previous ? transition(previous.brandMentionedInAiResponse, current.brandMentionedInAiResponse) : null;
+    const aiOwnedCitationChange = previous ? transition(previous.aiOwnedCitation, current.aiOwnedCitation) : null;
     return {
       key: keyOf(current),
+      query: current.query,
+      market: current.market,
+      engine: current.engine,
+      baselineRunId: previous?.baselineRunId ?? null,
+      baselineCapturedAt: previous?.baselineCapturedAt ?? null,
       previousVisibilityScore: previous?.visibilityScore ?? null,
       currentVisibilityScore: current.visibilityScore,
       scoreDelta: previous ? current.visibilityScore - previous.visibilityScore : null,
       previousBrandMentioned: previous?.brandMentioned ?? null,
       currentBrandMentioned: current.brandMentioned,
-      changed: Boolean(previous && (previous.visibilityScore !== current.visibilityScore || previous.brandMentioned !== current.brandMentioned)),
+      brandMentionChange: previous ? transition(previous.brandMentioned, current.brandMentioned) : null,
+      aiMentionChange,
+      aiOwnedCitationChange,
+      citationDomainsGained: domainsGained,
+      citationDomainsLost: domainsLost,
+      competitorsGained,
+      competitorsLost,
+      changed: Boolean(previous && (previous.visibilityScore !== current.visibilityScore || previous.brandMentioned !== current.brandMentioned
+        || ['gained', 'lost'].includes(aiMentionChange) || ['gained', 'lost'].includes(aiOwnedCitationChange)
+        || domainsGained.length || domainsLost.length || competitorsGained.length || competitorsLost.length)),
     };
   });
   const allCitations = snapshots.flatMap((snapshot) => snapshot.citations ?? []);
@@ -36,7 +62,8 @@ export function buildReport({ snapshots, errors = [], previousSnapshots = [], br
     type: 'report_summary',
     analysisVersion: 2,
     capturedAt: new Date().toISOString(),
-    status: errors.length && !snapshots.length ? 'failed' : errors.length ? 'partial' : 'succeeded',
+    status: errors.length && !snapshots.length ? 'failed' : errors.length || execution.stopReason ? 'partial' : 'succeeded',
+    ...execution,
     brand: brand.name,
     competitors: competitors.map((competitor) => competitor.name),
     snapshotCount: snapshots.length,

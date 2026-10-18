@@ -18,6 +18,11 @@
   "maxQueries": 1,
   "maxResultsPerQuery": 10,
   "maxTotalChargeUsd": 0.5,
+  "maxSourceBudgetUsd": 0.5,
+  "maxSourceRuns": 1,
+  "monitorId": "notion-us-live",
+  "historyEnabled": true,
+  "historyRetentionDays": 90,
   "historyKey": "NOTION_LIVE_TEST",
   "includeRawSource": true
 }

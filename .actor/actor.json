@@ -89,13 +89,58 @@
       "maxTotalChargeUsd": {
         "title": "Maximum source Actor charge",
         "type": "number",
-        "description": "Optional per-source-run Apify charge cap.",
+        "description": "Optional cap for EACH source run, further limited by the remaining aggregate source budget. Does not include this monitor's own compute/storage charges.",
         "minimum": 0
+      },
+      "maxSourceBudgetUsd": {
+        "title": "Total source budget (USD)",
+        "type": "number",
+        "description": "Aggregate budget across source runs in this monitor run. Unknown charges consume their full reserved allowance. Monitor compute/storage charges are additional. Zero disables new source runs.",
+        "default": 2,
+        "minimum": 0,
+        "maximum": 1000000
+      },
+      "maxSourceRuns": {
+        "title": "Maximum source runs",
+        "type": "integer",
+        "description": "Maximum source launch attempts across all queries, markets, and engines. Zero disables new launches.",
+        "default": 20,
+        "minimum": 0,
+        "maximum": 1000
+      },
+      "sourceTimeoutSeconds": {
+        "title": "Source timeout (seconds)",
+        "type": "integer",
+        "description": "Platform timeout for each source run. Shortened when the monitor approaches its own timeout; active sources are aborted on local timeout when possible.",
+        "default": 300,
+        "minimum": 5,
+        "maximum": 900
+      },
+      "monitorId": {
+        "title": "Monitor project ID",
+        "type": "string",
+        "editor": "textfield",
+        "description": "Stable project identifier, for example notion-us. Use the same value on recurring runs to compare history. Different projects remain isolated.",
+        "default": "default"
+      },
+      "historyEnabled": {
+        "title": "Enable persistent history",
+        "type": "boolean",
+        "description": "Create or reuse a named history store in your Apify account. Compare compatible observations from earlier completed runs. Requires normal storage creation permissions.",
+        "default": true
+      },
+      "historyRetentionDays": {
+        "title": "History retention (days)",
+        "type": "integer",
+        "description": "Delete this monitor project's older history records when it next runs. Named stores persist until explicitly cleaned or deleted.",
+        "default": 90,
+        "minimum": 1,
+        "maximum": 3650
       },
       "historyKey": {
         "title": "History key",
         "type": "string",
-        "description": "Key-value store record used for the previous-run comparison.",
+        "description": "History namespace, combined with monitorId. Kept for input compatibility; old run-local history arrays are not imported because their configuration cannot be verified.",
         "editor": "textfield",
         "default": "GEO_HISTORY"
       },

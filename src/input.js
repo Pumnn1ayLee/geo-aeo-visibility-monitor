@@ -79,6 +79,14 @@ export function normalizeInput(raw = {}) {
     throw new Error('maxTotalChargeUsd must be a non-negative number');
   }
 
+  const maxSourceBudgetUsd = Number(raw.maxSourceBudgetUsd ?? 2);
+  if (!Number.isFinite(maxSourceBudgetUsd) || maxSourceBudgetUsd < 0 || maxSourceBudgetUsd > 1_000_000) throw new Error('maxSourceBudgetUsd must be between 0 and 1000000');
+  const maxSourceRuns = Number(raw.maxSourceRuns ?? 20);
+  if (!Number.isInteger(maxSourceRuns) || maxSourceRuns < 0 || maxSourceRuns > 1000) throw new Error('maxSourceRuns must be an integer between 0 and 1000');
+  const historyRetentionDays = Number(raw.historyRetentionDays ?? 90);
+  if (!Number.isInteger(historyRetentionDays) || historyRetentionDays < 1 || historyRetentionDays > 3650) throw new Error('historyRetentionDays must be an integer between 1 and 3650');
+  if (raw.historyEnabled != null && typeof raw.historyEnabled !== 'boolean') throw new Error('historyEnabled must be a boolean');
+
   return {
     brand,
     competitors,
@@ -88,6 +96,11 @@ export function normalizeInput(raw = {}) {
     maxQueries,
     maxResultsPerQuery,
     maxTotalChargeUsd,
+    maxSourceBudgetUsd,
+    maxSourceRuns,
+    monitorId: asString(raw.monitorId ?? 'default', 'monitorId'),
+    historyEnabled: raw.historyEnabled ?? true,
+    historyRetentionDays,
     historyKey: asString(raw.historyKey ?? 'GEO_HISTORY', 'historyKey'),
     includeRawSource: Boolean(raw.includeRawSource),
     sourceActorInput: raw.sourceActorInput && typeof raw.sourceActorInput === 'object' ? raw.sourceActorInput : {},
@@ -101,6 +114,7 @@ export function buildSourceInput(config, query, market, engine) {
     countryCode: market.countryCode.toLowerCase(),
     languageCode: market.languageCode,
     maxPagesPerQuery: Math.max(1, Math.ceil(config.maxResultsPerQuery / 10)),
+    ...(market.location ? { location: market.location } : {}),
     ...config.sourceActorInput,
     ...engine.inputOverrides,
   };

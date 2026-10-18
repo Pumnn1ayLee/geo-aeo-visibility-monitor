@@ -10,6 +10,6 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test",
-    "lint": "node --check src/index.js && node --check src/input.js && node --check src/analysis.js && node --check src/report.js && node --check src/source-client.js && node --check src/storage.js"
+    "lint": "node --check src/index.js && node --check src/input.js && node --check src/analysis.js && node --check src/report.js && node --check src/source-client.js && node --check src/storage.js && node --check src/history.js && node --check src/budget.js"
   }
 }

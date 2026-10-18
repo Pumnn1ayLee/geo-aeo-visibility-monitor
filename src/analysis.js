@@ -270,6 +270,8 @@ export function analyzeSnapshot({ query, market, engine, brand, competitors, rec
     citations,
     recommendation,
     sourceRecordCount: records.length,
+    observationPresent: documents.some((item) => Boolean(documentText(item).trim() || item.url))
+      || aiResponses.some((item) => item.responsePresent || item.citationCount || item.attachedSourceCount),
   };
   if (includeRawSource) result.rawSource = records;
   return result;
