@@ -146,6 +146,24 @@ test('ordinary search answer snippets do not count as AI responses', () => {
   assert.equal(result.brandMentionedInAiResponse, null);
   assert.equal(result.aiResponseCount, 0);
   assert.equal(result.aiOwnedCitation, null);
+  assert.equal(result.aiOwnedAttachedSource, null);
+});
+
+test('tracks brand-owned attached sources separately from formal AI citations', () => {
+  const result = analyzeSnapshot({ ...notionInput, records: [{ aiModeResult: {
+    text: 'Notion is an option for team wikis.', sources: [
+      { url: 'https://www.notion.com/', section: 'attached' },
+      { url: 'https://review.example.org/wiki', section: 'citations' },
+    ],
+  } }] });
+  assert.equal(result.aiOwnedAttachedSource, true);
+  assert.equal(result.aiResponses[0].ownedAttachedSource, true);
+  assert.equal(result.aiOwnedCitation, false);
+  assert.equal(result.ownedCitation, false);
+  assert.equal(result.aiCitationCount, 1);
+  assert.equal(result.aiAttachedSourceCount, 1);
+  const noOwnSource = analyzeSnapshot({ ...notionInput, records: [{ aiModeResult: { text: 'Notion is a wiki.', sources: [] } }] });
+  assert.equal(noOwnSource.aiOwnedAttachedSource, false);
 });
 
 test('citations without answer text do not become brand mentions', () => {

@@ -72,6 +72,53 @@ test('a newer partial run cannot displace an older valid baseline for another qu
   assert.deepEqual(result.report.changes.map((change) => change.baselineRunId), ['partial', 'complete']);
 });
 
+test('persistent version 2 history detects the observed AI and attached-source changes without raw source', async () => {
+  const storage = new MemoryStorage();
+  const input = { brand: { name: 'Notion', domains: ['notion.com', 'notion.so'] }, competitors: ['ClickUp'],
+    queries: ['best team documentation tools'], maxTotalChargeUsd: 0.5 };
+  const redditPage = 'https://www.reddit.com/r/ProductManagement/comments/documentation/';
+  const gartnerPage = 'https://www.gartner.com/reviews/knowledge-management';
+  const organicResults = [
+    { position: 1, title: 'Documentation tools', url: redditPage },
+    { position: 2, title: 'Knowledge software', url: gartnerPage },
+    { position: 5, title: 'Notion and ClickUp for teams', url: 'https://medium.com/knowledge-tools' },
+  ];
+  const makeMode = (urls) => ({ text: 'Notion and ClickUp are options for team documentation.', sources: [
+    { url: 'https://www.gartner.com/', section: 'citations' },
+    { url: 'https://www.reddit.com/', section: 'citations' },
+    ...urls.map((url) => ({ url, section: 'attached' })),
+  ] });
+  const previousLinks = Array.from({ length: 10 }, (_, i) => `https://tools.example.org/tool-${i}`);
+  const currentLinks = ['https://www.notion.com/', ...previousLinks.slice(0, 5)];
+  const start = Date.parse('2026-10-18T00:00:00Z');
+  const first = await run(input, { sourceClient: new TestClient({ items: [{ organicResults, aiModeResult: makeMode(previousLinks) }] }),
+    storage, runId: 'before-upgrade', now: () => start, logger: quiet });
+  const saved = [...storage.stores.get(first.report.history.storeName).values()][0];
+  assert.equal(saved.snapshots[0].rawSource, undefined);
+  delete saved.snapshots[0].aiOwnedAttachedSource;
+  const second = await run(input, { sourceClient: new TestClient({ items: [{ organicResults, aiModeResult: makeMode(currentLinks),
+    aiOverview: { content: 'Notion is an option for knowledge management.', sources: [
+      { url: redditPage }, { url: 'https://www.reddit.com/r/ITManagers/comments/knowledge/' }, { url: gartnerPage },
+    ] },
+  }] }), storage, runId: 'after-upgrade', now: () => start + 1000, logger: quiet });
+  const change = second.report.changes[0];
+  assert.equal(second.report.changeDetectionVersion, 2);
+  assert.equal(second.report.history.baselineCount, 1);
+  assert.equal(change.baselineRunId, 'before-upgrade');
+  assert.equal(change.scoreDelta, 0);
+  assert.equal(change.currentVisibilityScore, 68);
+  assert.equal(change.aiResponseCountDelta, 1);
+  assert.equal(change.aiCitationCountDelta, 3);
+  assert.equal(change.citationCountDelta, 1);
+  assert.equal(change.aiAttachedSourceCountDelta, -4);
+  assert.equal(change.aiOwnedAttachedSourceChange, 'gained');
+  assert.equal(change.aiOwnedCitationChange, 'unchanged');
+  assert.deepEqual(change.aiAttachedSourceUrlsGained, ['https://www.notion.com/']);
+  assert.equal(change.aiAttachedSourceUrlsLost.length, 5);
+  assert.equal(change.changed, true);
+  assert.equal(second.snapshots[0].rawSource, undefined);
+});
+
 test('only prior completed history is eligible; expired records in this namespace are pruned', async () => {
   const storage = new MemoryStorage();
   const config = normalizeInput({ ...exampleInput, historyRetentionDays: 1 });

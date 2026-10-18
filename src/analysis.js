@@ -258,6 +258,7 @@ export function analyzeSnapshot({ query, market, engine, brand, competitors, rec
     aiCitations,
     aiAttachedSourceCount: aiAttachedSources.length,
     aiAttachedSources,
+    aiOwnedAttachedSource: aiResponses.length ? aiAttachedSources.some((item) => item.ownedByBrand) : null,
     ownedCitation,
     bestPosition,
     visibilityScore,
