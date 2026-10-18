@@ -1,0 +1,61 @@
+{
+  "actorSpecification": 1,
+  "title": "GEO / AEO visibility dataset",
+  "description": "Display views for visibility snapshots, related run summaries, and source errors. The record type identifies each row.",
+  "views": {
+    "overview": {
+      "title": "Visibility overview",
+      "description": "Query-level visibility and AI evidence counts. Summary and error rows remain identifiable by record type; unavailable measurements are left empty.",
+      "transformation": {
+        "fields": [
+          "type", "brand", "query", "market", "engine", "visibilityScore",
+          "brandMentionedInAiResponse", "aiOwnedCitation", "aiOwnedAttachedSource",
+          "aiResponseCount", "aiCitationCount", "aiAttachedSourceCount", "capturedAt"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "type": { "label": "Record type", "format": "text" },
+          "brand": { "label": "Brand", "format": "text" },
+          "query": { "label": "Query", "format": "text" },
+          "market": { "label": "Market", "format": "object" },
+          "engine": { "label": "Engine", "format": "text" },
+          "visibilityScore": { "label": "Visibility score", "format": "number" },
+          "brandMentionedInAiResponse": { "label": "Brand in AI answer", "format": "boolean" },
+          "aiOwnedCitation": { "label": "Owned AI citation", "format": "boolean" },
+          "aiOwnedAttachedSource": { "label": "Owned attached source", "format": "boolean" },
+          "aiResponseCount": { "label": "AI answers", "format": "number" },
+          "aiCitationCount": { "label": "AI citations", "format": "number" },
+          "aiAttachedSourceCount": { "label": "Attached sources", "format": "number" },
+          "capturedAt": { "label": "Captured at", "format": "date" }
+        }
+      }
+    },
+    "evidence": {
+      "title": "AI evidence and competitors",
+      "description": "Inspect AI answers, formal citations, attached sources, competitor mentions, and source-run references.",
+      "transformation": {
+        "fields": [
+          "type", "query", "engine", "aiResponses", "aiCitations", "aiAttachedSources",
+          "competitorMentions", "recommendation", "sourceRunId", "capturedAt"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "type": { "label": "Record type", "format": "text" },
+          "query": { "label": "Query", "format": "text" },
+          "engine": { "label": "Engine", "format": "text" },
+          "aiResponses": { "label": "AI answers", "format": "array" },
+          "aiCitations": { "label": "Formal AI citations", "format": "array" },
+          "aiAttachedSources": { "label": "Attached AI sources", "format": "array" },
+          "competitorMentions": { "label": "Competitor mentions", "format": "array" },
+          "recommendation": { "label": "Suggested action", "format": "text" },
+          "sourceRunId": { "label": "Source run ID", "format": "text" },
+          "capturedAt": { "label": "Captured at", "format": "date" }
+        }
+      }
+    }
+  }
+}

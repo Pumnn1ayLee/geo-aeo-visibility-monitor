@@ -6,6 +6,9 @@
   "version": "0.1",
   "dockerfile": "./Dockerfile",
   "output": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
   "input": {
     "title": "GEO / AEO monitor input",
     "type": "object",

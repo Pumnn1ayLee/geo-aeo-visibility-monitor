@@ -80,6 +80,8 @@ Dataset delivery and checkpoint writes are separate API operations. A lost deliv
 
 ## Output contract
 
+The default dataset defines two Console views in [`.actor/dataset_schema.json`](.actor/dataset_schema.json): **Visibility overview** and **AI evidence and competitors**. Both retain the record type so snapshots, run summaries, and source errors can be identified. Select **Visibility overview** in the Dataset schema section when publishing an example task. Views control presentation without changing stored records or the number of dataset items.
+
 Every successful snapshot contains the query, market, engine, overall and AI-response brand mention flags, owned-citation flag, best detected position, visibility score, evidence confidence, competitor mentions, citations, and a suggested next action. Raw source records are omitted by default; set `includeRawSource` to `true` when audit-level reproducibility is needed.
 
 `aiResponses` separates AI Overview (`aiOverview`) and AI Mode (`aiModeResult`) with their own brand mentions, competitors, and source lists. `aiCitations` contains AI source citations; `aiAttachedSources` contains links that the source labels `section: "attached"`. Attached links do not count toward `aiOwnedCitation` or citation totals. The combined `citations` list includes search result URLs and AI citations, while excluding query/navigation URLs and snapshot metadata. `bestPosition` measures a matching search result's position, not the order of brand recommendations in AI prose.
