@@ -1,0 +1,23 @@
+{
+  "brand": {
+    "name": "Notion",
+    "aliases": [],
+    "domains": ["notion.com", "notion.so"]
+  },
+  "competitors": [
+    {
+      "name": "ClickUp",
+      "aliases": [],
+      "domains": ["clickup.com"]
+    }
+  ],
+  "queries": ["Notion official website"],
+  "markets": [{ "countryCode": "US", "languageCode": "en" }],
+  "engines": [{ "name": "google", "actorId": "apify/google-search-scraper" }],
+  "sourceActorInput": {},
+  "maxQueries": 1,
+  "maxResultsPerQuery": 10,
+  "maxTotalChargeUsd": 0.5,
+  "historyKey": "NOTION_LIVE_TEST",
+  "includeRawSource": true
+}

@@ -29,6 +29,12 @@ The run writes `test-output/dataset.jsonl` and `test-output/history.json`. Delet
 
 Build and run the Actor with an Apify token. The runtime reads the platform `INPUT` record, invokes the configured source Actor with the same token, writes dataset items to the default dataset, and stores the previous snapshot in the default key-value store.
 
+The runtime supports the current `ACTOR_DEFAULT_KEY_VALUE_STORE_ID`, `ACTOR_INPUT_KEY`, and `ACTOR_DEFAULT_DATASET_ID` variables, as well as legacy `APIFY_*` names. Input defaults to the `INPUT` record when the platform does not set a record key.
+
+For a small live smoke test, paste [`examples/live-input.json`](examples/live-input.json) into the Actor's **Input → JSON** editor, save it, and start a new run of the latest successful build. This checks one Google query for Notion without paid AI add-ons. It still incurs source Actor and platform usage charges; the $0.50 source cap does not include this monitor's compute usage. A successful source call produces one `visibility_snapshot` and one `report_summary`; verify `snapshotCount: 1`, `errorCount: 0`, and `sourceRecordCount > 0`. A regular Google result alone does not verify AI answer visibility.
+
+Remove `GEO_USE_EXAMPLE` when testing Console input. Setting it to `1` explicitly allows the bundled example as a fallback when no input is found, which can hide an input-delivery problem. If a run fails before producing output, inspect that run's **Log** and **Input** tabs. The missing-input error distinguishes missing runtime credentials, missing store IDs, and a missing input record.
+
 `maxTotalChargeUsd` is forwarded to each source Actor run. Use it together with `maxQueries` and `maxResultsPerQuery` to keep source costs bounded.
 
 ## Output contract

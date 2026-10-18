@@ -106,22 +106,24 @@ export function buildSourceInput(config, query, market, engine) {
   };
 }
 
-export async function readInputFromEnvironment({ fetchImpl = globalThis.fetch, readFile = null } = {}) {
-  const inline = process.env.GEO_INPUT_JSON ?? process.env.APIFY_INPUT ?? process.env.APIFY_ACTOR_INPUT;
+export async function readInputFromEnvironment({ fetchImpl = globalThis.fetch, readFile = null, env = process.env } = {}) {
+  const inline = env.GEO_INPUT_JSON ?? env.APIFY_INPUT ?? env.APIFY_ACTOR_INPUT;
   if (inline) return JSON.parse(inline);
 
-  const inputFile = process.env.GEO_INPUT_FILE;
+  const inputFile = env.GEO_INPUT_FILE;
   if (inputFile && readFile) return JSON.parse(await readFile(inputFile, 'utf8'));
 
-  const token = process.env.APIFY_API_TOKEN ?? process.env.APIFY_TOKEN;
+  const token = env.APIFY_API_TOKEN ?? env.APIFY_TOKEN;
   const storeIds = [...new Set([
-    process.env.APIFY_INPUT_KEY_VALUE_STORE_ID,
-    process.env.APIFY_DEFAULT_KEY_VALUE_STORE_ID,
+    env.ACTOR_DEFAULT_KEY_VALUE_STORE_ID,
+    env.APIFY_INPUT_KEY_VALUE_STORE_ID,
+    env.APIFY_DEFAULT_KEY_VALUE_STORE_ID,
   ].filter(Boolean))];
+  const inputKey = env.ACTOR_INPUT_KEY ?? env.APIFY_INPUT_KEY ?? 'INPUT';
   if (token && storeIds.length && fetchImpl) {
-    const baseUrl = process.env.APIFY_API_BASE_URL ?? 'https://api.apify.com';
+    const baseUrl = (env.APIFY_API_BASE_URL ?? 'https://api.apify.com').replace(/\/$/, '');
     for (const storeId of storeIds) {
-      const response = await fetchImpl(`${baseUrl}/v2/key-value-stores/${encodeURIComponent(storeId)}/records/INPUT`, {
+      const response = await fetchImpl(`${baseUrl}/v2/key-value-stores/${encodeURIComponent(storeId)}/records/${encodeURIComponent(inputKey)}`, {
         headers: { authorization: `Bearer ${token}` },
       });
       if (response.ok) return response.json();
@@ -129,12 +131,17 @@ export async function readInputFromEnvironment({ fetchImpl = globalThis.fetch, r
     }
   }
 
-  if (readFile && process.env.GEO_USE_EXAMPLE === '1') {
+  if (readFile && env.GEO_USE_EXAMPLE === '1') {
     try {
       return JSON.parse(await readFile(new URL('../examples/input.json', import.meta.url), 'utf8'));
     } catch {
       // The helpful error below is preferable when the example file is absent.
     }
   }
-  throw new Error('No input found. Open the Actor Input tab and provide brand and queries, or set GEO_INPUT_JSON/GEO_INPUT_FILE.');
+  const reason = !token
+    ? 'Apify API token is missing'
+    : !storeIds.length
+      ? 'ACTOR_DEFAULT_KEY_VALUE_STORE_ID is missing'
+      : `record ${JSON.stringify(inputKey)} was not found in the configured input stores`;
+  throw new Error(`No input found (${reason}). Open the Actor Input tab and provide brand and queries, or set GEO_INPUT_JSON/GEO_INPUT_FILE.`);
 }
