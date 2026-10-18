@@ -1,13 +1,25 @@
 {
   "actorOutputSchemaVersion": 1,
   "title": "GEO / AEO visibility outputs",
-  "description": "Dataset items contain visibility snapshots, one aggregate report summary, and source errors for partial failures.",
+  "description": "Only successful visibility snapshots enter the billable default dataset. The run summary and source errors are separate key-value-store outputs, without per-result charges.",
   "properties": {
     "defaultDataset": {
       "type": "string",
-      "title": "Visibility snapshots and report",
-      "description": "Open the default Dataset to inspect query-level snapshots, the aggregate report_summary, and any source_error items.",
+      "title": "Successful visibility checks",
+      "description": "One billable snapshot per successful query, market and source-Actor check. No summary or error rows. Valid search evidence can be returned even when an AI answer is unavailable.",
       "template": "{{links.apiDefaultDatasetUrl}}/items"
+    },
+    "report": {
+      "type": "string",
+      "title": "Run report and historical changes",
+      "description": "Aggregate report_summary, historical comparisons, source budget and parent event-charge accounting. No per-result charge for this report; ordinary storage costs can apply.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/RUN_REPORT"
+    },
+    "errors": {
+      "type": "string",
+      "title": "Source errors (no per-result charge)",
+      "description": "Source diagnostics, including failures that do not produce billable snapshots. Source Actor and platform costs can still apply.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/SOURCE_ERRORS"
     }
   }
 }

@@ -19,7 +19,8 @@ test('runs every market/query/engine, checkpoints before POST, and persists hist
   assert.equal(result.report.status, 'succeeded');
   assert.equal(result.report.budget.knownChargeUsd, 0.2);
   assert.equal(result.snapshots.length, 2);
-  assert.equal(storage.items.filter((item) => item.type === 'report_summary').length, 1);
+  assert.ok(storage.items.every((item) => item.type === 'visibility_snapshot'));
+  assert.equal((await storage.loadJson('RUN_REPORT')).type, 'report_summary');
   assert.equal([...storage.stores.keys()].filter((name) => name.startsWith('geo-history-')).length, 1);
 });
 
@@ -87,7 +88,8 @@ test('a lost launch response stops dispatch and is never retried on resurrection
   assert.equal(calls, 1);
   assert.equal(first.report.stopReason, 'ambiguous_launch');
   assert.equal(second.report.budget.reservedUnknownChargeUsd, 0.5);
-  assert.equal(storage.items.filter((i) => i.type === 'report_summary').length, 1);
+  assert.equal(storage.items.length, 0);
+  assert.equal((await storage.loadJson('RUN_REPORT')).stopReason, 'ambiguous_launch');
 });
 
 test('resumes a checkpointed child ID after interruption without another POST', async () => {
@@ -106,13 +108,13 @@ test('resumes a checkpointed child ID after interruption without another POST', 
   assert.equal(result.report.budget.knownChargeUsd, 0.1);
   await run(exampleInput, { sourceClient: client, storage, runId: 'resume-me', logger: quiet });
   assert.equal(client.resumes.length, 1);
-  assert.equal(storage.items.length, 2);
+  assert.equal(storage.items.length, 1);
 });
 
 test('storage failure before reservation never dispatches a child and input changes cannot reuse a checkpoint', async () => {
   const storage = new MemoryStorage();
   const original = storage.saveJson.bind(storage);
-  storage.saveJson = async (key, state) => { if (state.entries.length) throw new Error('disk unavailable'); await original(key, state); };
+  storage.saveJson = async (key, state) => { if (state.entries?.length) throw new Error('disk unavailable'); await original(key, state); };
   const client = new TestClient();
   await assert.rejects(run(exampleInput, { sourceClient: client, storage, runId: 'stable', logger: quiet }), /disk unavailable/);
   assert.equal(client.calls.length, 0);
@@ -155,7 +157,7 @@ test('a slow reservation write cannot dispatch a child after the parent launch w
   const original = storage.saveJson.bind(storage);
   storage.saveJson = async (key, state) => {
     await original(key, state);
-    if (state.entries.length) clock += 15000;
+    if (state.entries?.length) clock += 15000;
   };
   const client = new TestClient();
   const result = await run(exampleInput, { sourceClient: client, storage, now: () => clock, env: { ACTOR_TIMEOUT_AT: '2026-10-18T00:00:30Z' }, logger: quiet });

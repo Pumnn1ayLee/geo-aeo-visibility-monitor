@@ -1,0 +1,15 @@
+{
+  "brand": { "name": "Notion", "aliases": [], "domains": ["notion.com", "notion.so"] },
+  "competitors": [{ "name": "ClickUp", "domains": ["clickup.com"] }],
+  "queries": ["best tools for team documentation and knowledge management"],
+  "markets": [{ "countryCode": "US", "languageCode": "en" }],
+  "monitoringPreset": "google_ai_mode",
+  "maxQueries": 1,
+  "maxResultsPerQuery": 10,
+  "maxSourceBudgetUsd": 0.5,
+  "maxTotalChargeUsd": 0.5,
+  "maxSourceRuns": 1,
+  "monitorId": "notion-us-ai-mode",
+  "historyEnabled": true,
+  "includeRawSource": false
+}

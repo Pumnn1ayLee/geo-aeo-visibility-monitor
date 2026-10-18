@@ -13,6 +13,7 @@ export class MemoryStorage {
   async deleteJson(key) { this.records.delete(key); }
   async listKeys() { return [...this.records.keys()]; }
   async pushItems(items) { this.items.push(...structuredClone(items)); }
+  async hasSnapshot(runId, comparisonKey) { return this.items.some((item) => item.runId === runId && item.comparisonKey === comparisonKey); }
 }
 
 export const exampleInput = { brand: { name: 'Example brand', domains: ['example.com'] }, queries: ['best tool'], maxTotalChargeUsd: 0.5 };

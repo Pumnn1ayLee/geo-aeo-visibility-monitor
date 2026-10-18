@@ -1,6 +1,13 @@
 const DEFAULT_SOURCE_ACTOR = 'apify/google-search-scraper';
 const MAX_QUERIES = 100;
 const MAX_RESULTS = 100;
+export const MONITORING_PRESETS = ['google_ai_mode', 'google_ai_overview', 'google_ai_full', 'web_search', 'custom'];
+
+function objectInput(value, field) {
+  if (value == null) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error(`${field} must be an object`);
+  return value;
+}
 
 function asString(value, field) {
   if (typeof value !== 'string' || !value.trim()) {
@@ -71,6 +78,18 @@ export function normalizeInput(raw = {}) {
 
   const engines = (raw.engines ?? [{ name: 'google', actorId: DEFAULT_SOURCE_ACTOR }]).map(normalizeEngine);
   if (engines.length === 0) throw new Error('engines must contain at least one source Actor');
+  const sourceActorInput = objectInput(raw.sourceActorInput, 'sourceActorInput');
+  // Keep older saved inputs and API clients on their explicitly configured collection settings.
+  // New Console inputs prefill google_ai_mode; the platform default remains custom for older clients.
+  const monitoringPreset = raw.monitoringPreset ?? 'custom';
+  if (!MONITORING_PRESETS.includes(monitoringPreset)) throw new Error(`monitoringPreset must be one of: ${MONITORING_PRESETS.join(', ')}`);
+  if (monitoringPreset !== 'custom' && engines.some((engine) => engine.actorId.replace('~', '/') !== DEFAULT_SOURCE_ACTOR)) {
+    throw new Error('Google monitoring presets require apify/google-search-scraper. Select custom for other source Actors.');
+  }
+  if (monitoringPreset !== 'custom' && [sourceActorInput, ...engines.map((engine) => engine.inputOverrides)]
+    .some((options) => ['perplexitySearch', 'chatGptSearch', 'copilotSearch', 'geminiSearch'].some((key) => key in options))) {
+    throw new Error('Other AI add-ons require monitoringPreset: custom so their additional charges are explicit.');
+  }
 
   const maxQueries = Math.floor(boundedNumber(raw.maxQueries, 'maxQueries', queries.length, 1, MAX_QUERIES));
   const maxResultsPerQuery = Math.floor(boundedNumber(raw.maxResultsPerQuery, 'maxResultsPerQuery', 10, 1, MAX_RESULTS));
@@ -93,6 +112,7 @@ export function normalizeInput(raw = {}) {
     queries: queries.slice(0, maxQueries),
     markets,
     engines,
+    monitoringPreset,
     maxQueries,
     maxResultsPerQuery,
     maxTotalChargeUsd,
@@ -103,13 +123,13 @@ export function normalizeInput(raw = {}) {
     historyRetentionDays,
     historyKey: asString(raw.historyKey ?? 'GEO_HISTORY', 'historyKey'),
     includeRawSource: Boolean(raw.includeRawSource),
-    sourceActorInput: raw.sourceActorInput && typeof raw.sourceActorInput === 'object' ? raw.sourceActorInput : {},
+    sourceActorInput,
     sourceTimeoutSeconds: boundedNumber(raw.sourceTimeoutSeconds, 'sourceTimeoutSeconds', 300, 5, 900),
   };
 }
 
 export function buildSourceInput(config, query, market, engine) {
-  return {
+  const input = {
     queries: query,
     countryCode: market.countryCode.toLowerCase(),
     languageCode: market.languageCode,
@@ -118,6 +138,12 @@ export function buildSourceInput(config, query, market, engine) {
     ...config.sourceActorInput,
     ...engine.inputOverrides,
   };
+  if (config.monitoringPreset !== 'custom') {
+    // The selected preset owns the two Google switches; advanced options cannot silently disable it.
+    input.aiModeSearch = { ...input.aiModeSearch, enableAiMode: ['google_ai_mode', 'google_ai_full'].includes(config.monitoringPreset) };
+    input.aiOverview = { ...input.aiOverview, scrapeFullAiOverview: ['google_ai_overview', 'google_ai_full'].includes(config.monitoringPreset) };
+  }
+  return input;
 }
 
 export async function readInputFromEnvironment({ fetchImpl = globalThis.fetch, readFile = null, env = process.env } = {}) {

@@ -123,8 +123,43 @@ test('missing history is allowed but failed dataset or history writes are surfac
     fetchImpl: async () => jsonResponse({ error: 'not found' }, 404),
   });
   assert.equal(await storage.loadJson('history'), null);
-  await assert.rejects(storage.pushItems([{ type: 'report_summary' }]), /storage request failed \(404\)/);
+  await assert.rejects(storage.pushItems([{ type: 'visibility_snapshot', observationPresent: true }]), /storage request failed \(404\)/);
+  await assert.rejects(storage.pushItems([{ type: 'report_summary' }]), /Only successful visibility snapshots/);
   await assert.rejects(storage.saveJson('history', []), /storage request failed \(404\)/);
+});
+
+test('dataset reconciliation reads authenticated pages and matches both run and comparison key', async () => {
+  const requests = [];
+  const storage = new ApifyStorage({ token: 'test-token', datasetId: 'dataset', env: {},
+    fetchImpl: async (url, options) => {
+      requests.push(url);
+      assert.equal(options.headers.authorization, 'Bearer test-token');
+      const params = new URL(url).searchParams;
+      assert.equal(params.get('fields'), 'runId,comparisonKey');
+      const offset = Number(params.get('offset'));
+      return jsonResponse(offset === 0
+        ? Array.from({ length: 1000 }, () => ({ runId: 'other-run', comparisonKey: 'target' }))
+        : [{ runId: 'run', comparisonKey: 'target' }]);
+    },
+  });
+  assert.equal(await storage.hasSnapshot('run', 'target'), true);
+  assert.deepEqual(requests.map((url) => new URL(url).searchParams.get('offset')), ['0', '1000']);
+  assert.equal(await storage.hasSnapshot('missing', 'target'), false);
+});
+
+test('pricing reads the current run with authentication and rejects storage misuse without a paid write', async () => {
+  const requests = [];
+  const storage = new ApifyStorage({ token: 'test-token', datasetId: 'dataset', env: { ACTOR_RUN_ID: 'current-run' },
+    fetchImpl: async (url, options) => {
+      requests.push(url);
+      assert.equal(options.headers.authorization, 'Bearer test-token');
+      return jsonResponse({ data: { id: 'current-run', pricingInfo: { pricingModel: 'FREE' } } });
+    },
+  });
+  assert.equal((await storage.getRunInfo()).id, 'current-run');
+  await assert.rejects(storage.pushItems([{ type: 'source_error', observationPresent: true }]), /Only successful visibility snapshots/);
+  await assert.rejects(storage.pushItems([{ type: 'visibility_snapshot', observationPresent: false }]), /Only successful visibility snapshots/);
+  assert.deepEqual(requests, ['https://api.apify.com/v2/actor-runs/current-run']);
 });
 
 test('reads Console input and publishes live-test snapshots using only current Actor variables', async () => {
@@ -146,6 +181,13 @@ test('reads Console input and publishes live-test snapshots using only current A
     assert.equal(options.headers.authorization, 'Bearer test-token');
     const { pathname, searchParams } = new URL(url);
     const method = options.method ?? 'GET';
+    if (pathname === '/v2/actor-runs/monitor-run') return jsonResponse({ data: {
+      id: 'monitor-run', options: { memoryMbytes: 1024, maxTotalChargeUsd: 1 },
+      pricingInfo: { pricingModel: 'PAY_PER_EVENT', pricingPerEvent: { actorChargeEvents: {
+        'apify-actor-start': { eventPriceUsd: 0.00005 },
+        'apify-default-dataset-item': { eventPriceUsd: 0.01 },
+      } } }, chargedEventCounts: { 'apify-actor-start': 1 },
+    } });
     if (pathname === '/v2/key-value-stores/run-store/records/INPUT') return jsonResponse(liveInput);
     if (pathname === '/v2/key-value-stores' && method === 'POST') {
       assert.match(searchParams.get('name'), /^geo-history-/);
@@ -190,7 +232,9 @@ test('reads Console input and publishes live-test snapshots using only current A
   assert.equal(result.report.snapshotCount, 1);
   assert.equal(result.report.errorCount, 0);
   const dataset = writes.find((write) => write.resource === 'dataset').body;
-  assert.deepEqual(dataset.map((item) => item.type), ['visibility_snapshot', 'report_summary']);
+  assert.deepEqual(dataset.map((item) => item.type), ['visibility_snapshot']);
+  assert.equal(records.get('/v2/key-value-stores/run-store/records/RUN_REPORT').type, 'report_summary');
+  assert.deepEqual(records.get('/v2/key-value-stores/run-store/records/SOURCE_ERRORS'), []);
   assert.equal(dataset[0].sourceRecordCount, 1);
   assert.equal(dataset[0].ownedCitation, true);
   assert.equal(writes.find((write) => write.resource === 'history').body.snapshots.length, 1);
@@ -225,7 +269,8 @@ test('two independent CLI processes persist history on disk without paid API cal
     assert.equal(second.report.budget.knownChargeUsd, 0);
     assert.equal(second.report.budget.remainingSourceBudgetUsd, 2);
     const lines = (await readFile(join(directory, 'dataset.jsonl'), 'utf8')).trim().split('\n');
-    assert.equal(lines.length, 6);
+    assert.equal(lines.length, 4);
+    assert.equal(JSON.parse(await readFile(join(directory, 'records', 'RUN_REPORT.json'), 'utf8')).snapshotCount, 2);
   } finally {
     const childPath = relative(resolve(root), resolve(directory));
     assert.ok(childPath && !childPath.startsWith('..') && !isAbsolute(childPath));

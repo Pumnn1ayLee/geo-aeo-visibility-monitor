@@ -26,14 +26,8 @@
       "actorId": "apify/google-search-scraper"
     }
   ],
-  "sourceActorInput": {
-    "aiOverview": {
-      "scrapeFullAiOverview": true
-    },
-    "aiModeSearch": {
-      "enableAiMode": true
-    }
-  },
+  "monitoringPreset": "google_ai_full",
+  "sourceActorInput": {},
   "maxQueries": 50,
   "maxResultsPerQuery": 10,
   "maxTotalChargeUsd": 2,

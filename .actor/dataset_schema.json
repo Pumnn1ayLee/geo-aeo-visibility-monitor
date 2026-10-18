@@ -1,11 +1,11 @@
 {
   "actorSpecification": 1,
   "title": "GEO / AEO visibility dataset",
-  "description": "Display views for visibility snapshots, related run summaries, and source errors. The record type identifies each row.",
+  "description": "Display views for successful, billable visibility snapshots. Run summaries and source errors are separate key-value-store outputs.",
   "views": {
     "overview": {
       "title": "Visibility overview",
-      "description": "Query-level visibility and AI evidence counts. Summary and error rows remain identifiable by record type; unavailable measurements are left empty.",
+      "description": "Query-level visibility and AI evidence counts for successful snapshots; unavailable measurements are left empty. Open Run report for summaries and historical changes.",
       "transformation": {
         "fields": [
           "type", "brand", "query", "market", "engine", "visibilityScore",

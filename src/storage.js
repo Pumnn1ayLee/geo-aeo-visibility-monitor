@@ -26,6 +26,29 @@ export class ApifyStorage {
     return Boolean(this.token && this.fetch);
   }
 
+  async getRunInfo() {
+    if (!this.runId) throw new Error('ACTOR_RUN_ID is required to verify parent pricing');
+    const response = await this.fetch(`${this.baseUrl}/v2/actor-runs/${encodeURIComponent(this.runId)}`, {
+      headers: { authorization: `Bearer ${this.token}` }, signal: AbortSignal.timeout(15000),
+    });
+    const body = await parseResponse(response);
+    return body?.data ?? body;
+  }
+
+  async hasSnapshot(runId, comparisonKey) {
+    // Dataset writes are not idempotent. Confirm an interrupted write before allowing any replay.
+    for (let offset = 0; ; offset += 1000) {
+      const params = new URLSearchParams({ fields: 'runId,comparisonKey', offset: String(offset), limit: '1000' });
+      const response = await this.fetch(`${this.baseUrl}/v2/datasets/${encodeURIComponent(this.datasetId)}/items?${params}`, {
+        headers: { authorization: `Bearer ${this.token}` }, signal: AbortSignal.timeout(15000),
+      });
+      const items = await parseResponse(response);
+      if (!Array.isArray(items)) throw new Error('Invalid dataset response while reconciling snapshot delivery');
+      if (items.some((item) => item.runId === runId && item.comparisonKey === comparisonKey)) return true;
+      if (items.length < 1000) return false;
+    }
+  }
+
   async openNamedStore(name) {
     const response = await this.fetch(`${this.baseUrl}/v2/key-value-stores?${new URLSearchParams({ name })}`, {
       method: 'POST', headers: { authorization: `Bearer ${this.token}` },
@@ -85,6 +108,9 @@ export class ApifyStorage {
   }
 
   async pushItems(items) {
+    if (items.some((item) => item.type !== 'visibility_snapshot' || !item.observationPresent)) {
+      throw new Error('Only successful visibility snapshots may be written to the billable default dataset');
+    }
     if (!this.enabled || !this.datasetId || items.length === 0) return;
     const response = await this.fetch(`${this.baseUrl}/v2/datasets/${encodeURIComponent(this.datasetId)}/items`, {
       method: 'POST',
@@ -135,9 +161,19 @@ export class LocalStorage {
   }
 
   async pushItems(items) {
+    if (items.some((item) => item.type !== 'visibility_snapshot' || !item.observationPresent)) {
+      throw new Error('Only successful visibility snapshots may be written to the billable default dataset');
+    }
     if (!items.length) return;
     await mkdir(dirname(this.datasetPath), { recursive: true });
     await appendFile(this.datasetPath, `${items.map((item) => JSON.stringify(item)).join('\n')}\n`, 'utf8');
+  }
+
+  async hasSnapshot(runId, comparisonKey) {
+    try {
+      const lines = (await readFile(this.datasetPath, 'utf8')).trim().split('\n').filter(Boolean);
+      return lines.map((line) => JSON.parse(line)).some((item) => item.runId === runId && item.comparisonKey === comparisonKey);
+    } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
   }
 }
 

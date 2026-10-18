@@ -14,6 +14,7 @@
   "queries": ["Notion official website"],
   "markets": [{ "countryCode": "US", "languageCode": "en" }],
   "engines": [{ "name": "google", "actorId": "apify/google-search-scraper" }],
+  "monitoringPreset": "web_search",
   "sourceActorInput": {},
   "maxQueries": 1,
   "maxResultsPerQuery": 10,

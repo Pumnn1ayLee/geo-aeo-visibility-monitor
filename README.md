@@ -2,15 +2,43 @@
 
 An Apify Actor that turns search and AI-search results into recurring brand visibility and competitive-intelligence data.
 
-The Actor orchestrates a configurable Apify source Actor, normalizes common SERP/AI-answer response shapes, and emits:
+The Actor orchestrates a configurable Apify source Actor and normalizes common SERP/AI-answer response shapes. Output contract version 2 separates billable results from diagnostics:
 
-- one `visibility_snapshot` per query, market, and engine;
-- one `report_summary` with visibility, mention rate, owned-citation rate, competitor rate, top citation domains, and historical changes;
-- `source_error` items for partial failures.
+- The default **Dataset** contains one `visibility_snapshot` per successful query, market, and engine check. Completed snapshots are delivered individually during the run.
+- **Run report and historical changes** opens `RUN_REPORT` in the run's key-value store: a `report_summary` with visibility, mention/citation rates, competitors, historical changes, source budgets, and parent event-charge accounting.
+- **Source errors** opens `SOURCE_ERRORS` in the same store: a diagnostic array for partial or complete source failures.
 
 The default source is `apify/google-search-scraper`. The source Actor is intentionally configurable so the monitor can later add other engines without changing its output contract.
 
-For the default Google source, `queries` is sent as a single string because that is the source Actor's input contract. Add-ons are passed through `sourceActorInput`, for example `{"aiOverview":{"scrapeFullAiOverview":true},"aiModeSearch":{"enableAiMode":true}}`. These add-ons can incur additional source-Actor charges, so keep `maxTotalChargeUsd` set when testing.
+## Choose a monitoring preset
+
+New Console inputs explicitly prefill **Google AI Mode - extra source charges**, so an empty advanced-options object no longer silently selects ordinary web search. The schema uses `prefill: google_ai_mode` and `default: custom`: the interface suggests AI collection while omitted fields in existing tasks and API requests preserve their current settings. Every preset works with your chosen brand and competitors; Notion in the live example is only sample input.
+
+| `monitoringPreset` | Google collection settings | Source charges |
+| --- | --- | --- |
+| `google_ai_mode` | Enable Google AI Mode; full AI Overview capture off. | Standard search plus the source's AI Mode add-on. |
+| `google_ai_overview` | Full AI Overview capture on; AI Mode off. | Standard search plus the source's captured AI Overview add-on. Google may not show an Overview. |
+| `google_ai_full` | Enable both Google AI Mode and full AI Overview capture. | Standard search plus both applicable add-ons. |
+| `web_search` | Disable both Google AI switches. | Standard source search charges; this preset is not an AI-answer visibility test. |
+| `custom` | Preserve `sourceActorInput` and engine `inputOverrides`. | Depends on the source and enabled options. |
+
+Google presets require `apify/google-search-scraper` and control the two Google switches even when advanced options conflict. Other AI add-ons require `custom`; their response formats still require compatible normalization. For compatibility, saved inputs and API calls **without** `monitoringPreset` retain their existing collection settings (`custom`). Explicitly choose `google_ai_mode` to upgrade an existing task to AI collection. Collection changes establish a new compatible-history baseline.
+
+For a one-query AI check, use [`examples/ai-live-input.json`](examples/ai-live-input.json). For a regular-search check, use [`examples/live-input.json`](examples/live-input.json). Both launch paid sources. See the source's current [pricing](https://apify.com/apify/google-search-scraper/pricing); source budgets do not include this monitor's fee. Presets request AI data but cannot guarantee that an answer is returned. A successful snapshot requires usable search or AI evidence; a valid search-only snapshot is still a billable visibility check and has unknown AI-answer measurements.
+
+For Google, `queries` is sent as a single string according to the source's input contract. To manage the switches manually, choose `custom` and set `sourceActorInput`, for example `{"aiOverview":{"scrapeFullAiOverview":true},"aiModeSearch":{"enableAiMode":true}}`.
+
+## Pricing and parent charge limit
+
+Keep the existing `apify-default-dataset-item` event in Console. Only successful snapshots enter that dataset, so its event now bills successful checks only. **Summaries and error records do not incur per-result charges.** The automatic `apify-actor-start` fee remains separate, and upstream Actors can charge for failed or empty source runs. Ordinary compute/storage costs also apply according to platform pricing.
+
+At $0.01 per snapshot, 10 successful query checks produce 10 billable rows: $0.10 plus startup and upstream charges. Their summary and error diagnostics add zero result events. No-results or all-error runs have zero snapshot events, while startup/upstream costs can still apply.
+
+Before starting each new source run, the monitor reads **that run's** pricing and charged event counts from Apify, reserves the startup fee according to memory, and checks that one additional snapshot fits within the smaller of `ACTOR_MAX_TOTAL_CHARGE_USD` and the run's API maximum. Local delivery receipts cover delayed event counts. If a snapshot does not fit, the run stops with `parent_charge_limit` and saves its report without launching more sources. Malformed or unsupported pricing fails before paid source work. No charge request is sent manually; Apify bills dataset writes automatically. This is an event-charge guard for the parent run, separate from the source-run budget, and is not an account-wide or entire-invoice spending cap.
+
+`report_summary.billing` includes the run-specific unit price, maximum parent charge, accounted event charges, remaining snapshot capacity, confirmed delivery count and pending delivery count. Pending writes reserve their full event price until reconciled; these figures are conservative accounting, not a final invoice. Platform compute/usage charges and downstream spending are not estimated by the parent event guard. Actor memory is limited to 1 GB.
+
+When updating your published Actor, keep the event name and existing unit price. You can rename its **Title** to `Successful visibility check` and its **Description** to `One successful query, market and source-Actor visibility snapshot. Run summaries and source errors are not charged as results.` No new custom event is needed. Start a **new run** after rebuilding; version 1 run checkpoints cannot be resurrected into this output contract.
 
 ## Run locally with a fixture
 
@@ -31,7 +59,7 @@ Build and run the Actor with an Apify token. The runtime reads the platform `INP
 
 The runtime supports the current `ACTOR_DEFAULT_KEY_VALUE_STORE_ID`, `ACTOR_INPUT_KEY`, and `ACTOR_DEFAULT_DATASET_ID` variables, as well as legacy `APIFY_*` names. Input defaults to the `INPUT` record when the platform does not set a record key.
 
-For a small live smoke test, paste [`examples/live-input.json`](examples/live-input.json) into the Actor's **Input → JSON** editor, save it, and start a new run of the latest successful build. This checks one Google query for Notion without paid AI add-ons. It still incurs source Actor and platform usage charges; the $0.50 source cap does not include this monitor's compute usage. A successful source call produces one `visibility_snapshot` and one `report_summary`; verify `snapshotCount: 1`, `errorCount: 0`, and `sourceRecordCount > 0`. A regular Google result alone does not verify AI answer visibility.
+For a small live smoke test, paste [`examples/live-input.json`](examples/live-input.json) into the Actor's **Input → JSON** editor, save it, and start a new run of the latest successful build. This checks one Google query for Notion without paid AI add-ons. It still incurs source Actor and platform usage charges; the $0.50 source cap does not include this monitor's fee. A successful source call produces one `visibility_snapshot` in the Dataset and a separate `RUN_REPORT`; verify `snapshotCount: 1`, `errorCount: 0`, and `sourceRecordCount > 0`. A regular Google result alone does not verify AI answer visibility.
 
 Remove `GEO_USE_EXAMPLE` when testing Console input. Setting it to `1` explicitly allows the bundled example as a fallback when no input is found, which can hide an input-delivery problem. If a run fails before producing output, inspect that run's **Log** and **Input** tabs. The missing-input error distinguishes missing runtime credentials, missing store IDs, and a missing input record.
 
@@ -70,17 +98,17 @@ Terminal source runs are accounted using the authenticated run's `usageTotalUsd`
 
 The aggregate budget covers the source runs launched by this monitor. This monitor's own compute, storage and traffic charges are additional. Platform billing granularity and late settlement also prevent promising an absolute cap on the entire Apify invoice. Separate concurrent monitor runs each have their own source budget; this is not an account-wide monthly spending limit. See [Apify source run cost and timeout parameters](https://docs.apify.com/api/v2/act-runs-post).
 
-`report_summary.budget` exposes known charges, reserved unknown charges, accounted charges, remaining budget, and a per-source ledger with run IDs. The report also includes planned/completed/failed/unresolved/skipped counts and `stopReason` (`budget_exhausted`, `max_source_runs`, `parent_deadline`, `ambiguous_launch`, or `source_reconciliation_required`). A budget stop preserves completed results and returns `status: "partial"`. All-source failures produce `status: "failed"` and a nonzero process exit after saving diagnostic output.
+`report_summary.budget` exposes known charges, reserved unknown charges, accounted charges, remaining budget, and a per-source ledger with run IDs. The report also includes planned/completed/failed/unresolved/skipped counts and `stopReason` (`budget_exhausted`, `max_source_runs`, `parent_deadline`, `parent_charge_limit`, `ambiguous_launch`, or `source_reconciliation_required`). A budget stop preserves completed results and returns `status: "partial"`. All-source failures produce `status: "failed"` and a nonzero process exit after saving diagnostic output. `RUN_REPORT` is also updated during collection with `status: "running"`, so an interrupted run retains its latest progress.
 
 Checkpoints are saved before launch, after obtaining the child run ID, after settlement, and after analysis. Resurrection of the **same Apify run** reuses its checkpoint and known child IDs instead of relaunching them. A brand-new run has a fresh budget and performs fresh measurements. Do not edit input while resurrecting an existing run. Completed output is not emitted again when its delivery checkpoint is confirmed.
 
 If a launch POST loses its response, a child may already exist. The Actor reserves its full allowance and stops with `ambiguous_launch`; it does not blindly repeat that POST. Inspect the source Actor's run list before starting another monitor run. If a known running child cannot be reconciled or aborted, the Actor stops other launches; resurrection can inspect that same child again. Local timeouts and polling errors request an abort. The child also has a platform timeout, since forced parent termination cannot guarantee cleanup code executes.
 
-Dataset delivery and checkpoint writes are separate API operations. A lost delivery acknowledgement, or reconciliation after an earlier partial report was emitted, can append duplicate/revised items. Consumers can deduplicate snapshots by `(runId, comparisonKey)` and use the latest report for a run. Source launches are still protected by the ledger. Concurrent instances of the same run ID are not supported; separate scheduled runs have separate IDs and independent history records.
+Dataset delivery and checkpoint writes are separate API operations. Each snapshot write is checkpointed as pending before delivery and confirmed afterward. On resurrection, an interrupted write is checked against `(runId, comparisonKey)` in the existing dataset. A matching row is confirmed without replaying its paid write. If delivery cannot be confirmed, the run stops with a `dataset_delivery_unconfirmed` report and does not repeat the write or launch more sources; inspect the dataset and diagnostic before starting another run. Reports are overwritten in the run store, never appended as billable rows. Concurrent instances of the same run ID are not supported; separate scheduled runs have separate IDs and independent history records.
 
 ## Output contract
 
-The default dataset defines two Console views in [`.actor/dataset_schema.json`](.actor/dataset_schema.json): **Visibility overview** and **AI evidence and competitors**. Both retain the record type so snapshots, run summaries, and source errors can be identified. Select **Visibility overview** in the Dataset schema section when publishing an example task. Views control presentation without changing stored records or the number of dataset items.
+The default dataset defines two Console views in [`.actor/dataset_schema.json`](.actor/dataset_schema.json): **Visibility overview** and **AI evidence and competitors**. Both contain successful snapshots only. Select **Visibility overview** in the Dataset schema section when publishing an example task. Open **Run report and historical changes** or **Source errors** in the run's Output tab for the separate diagnostics. API clients that previously read `report_summary` or `source_error` from dataset items must use the output URLs or the `RUN_REPORT` and `SOURCE_ERRORS` records in the run's default key-value store. Views control presentation without changing stored records or the number of dataset items.
 
 Every successful snapshot contains the query, market, engine, overall and AI-response brand mention flags, owned-citation flag, best detected position, visibility score, evidence confidence, competitor mentions, citations, and a suggested next action. Raw source records are omitted by default; set `includeRawSource` to `true` when audit-level reproducibility is needed.
 

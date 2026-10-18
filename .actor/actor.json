@@ -4,6 +4,8 @@
   "title": "GEO / AEO Visibility Monitor",
   "description": "Monitor brand visibility, citations, competitors, and changes across AI search and web search results.",
   "version": "0.1",
+  "minMemoryMbytes": 128,
+  "maxMemoryMbytes": 1024,
   "dockerfile": "./Dockerfile",
   "output": "./output_schema.json",
   "storages": {
@@ -66,10 +68,21 @@
           }
         ]
       },
+      "monitoringPreset": {
+        "title": "Monitoring preset (AI add-ons cost extra)",
+        "type": "string",
+        "editor": "select",
+        "description": "New Console inputs prefill Google AI Mode, which adds source-Actor charges. Web search disables Google AI Mode and full AI Overview capture. Custom preserves your advanced source options. Presets require apify/google-search-scraper. Saved inputs and API requests without this field default to custom, preserving their settings. No preset guarantees an AI answer for every query.",
+        "enum": ["google_ai_mode", "google_ai_overview", "google_ai_full", "web_search", "custom"],
+        "enumTitles": ["Google AI Mode - extra source charges", "Google AI Overview - extra source charges when captured", "Google AI Mode + AI Overview - extra source charges", "Web search - no Google AI add-ons", "Custom - use advanced source options"],
+        "prefill": "google_ai_mode",
+        "example": "google_ai_mode",
+        "default": "custom"
+      },
       "sourceActorInput": {
         "title": "Source Actor options",
         "type": "object",
-        "description": "Optional source Actor fields. For Google Search, use aiOverview, aiModeSearch, perplexitySearch, chatGptSearch, copilotSearch, or geminiSearch to enable AEO/GEO data.",
+        "description": "Advanced source fields. The selected Google preset controls aiModeSearch.enableAiMode and aiOverview.scrapeFullAiOverview; choose custom to manage these switches yourself or use another source Actor. Other AI add-ons require custom. Extra source charges apply according to the selected source Actor's pricing.",
         "editor": "json",
         "default": {}
       },
