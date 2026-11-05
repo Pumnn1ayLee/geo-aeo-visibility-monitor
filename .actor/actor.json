@@ -21,6 +21,11 @@
         "type": "object",
         "description": "Brand to monitor. Use name, aliases, and owned domains.",
         "editor": "json",
+        "prefill": {
+          "name": "Apify",
+          "aliases": [],
+          "domains": ["apify.com"]
+        },
         "default": {
           "name": "Example brand",
           "aliases": [],
@@ -39,6 +44,7 @@
         "type": "array",
         "description": "Questions to ask search and AI search engines.",
         "editor": "stringList",
+        "prefill": ["best web scraping platforms for developers"],
         "default": [
           "best project management software for small teams",
           "Example brand alternatives"
@@ -72,10 +78,10 @@
         "title": "Monitoring preset (AI add-ons cost extra)",
         "type": "string",
         "editor": "select",
-        "description": "New Console inputs prefill Google AI Mode, which adds source-Actor charges. Web search disables Google AI Mode and full AI Overview capture. Custom preserves your advanced source options. Presets require apify/google-search-scraper. Saved inputs and API requests without this field default to custom, preserving their settings. No preset guarantees an AI answer for every query.",
-        "enum": ["google_ai_mode", "google_ai_overview", "google_ai_full", "web_search", "custom"],
-        "enumTitles": ["Google AI Mode - extra source charges", "Google AI Overview - extra source charges when captured", "Google AI Mode + AI Overview - extra source charges", "Web search - no Google AI add-ons", "Custom - use advanced source options"],
-        "prefill": "google_ai_mode",
+        "description": "Recommended Google web + AI Mode runs a web check first and a separate AI check for each query, so usable web results remain available if AI times out. Two source runs and up to two billable snapshots per query; AI add-ons incur extra source charges. AI failures remain visible in Run report and Source errors, with no invented AI visibility. Other Google presets select a single combined source run. Custom preserves advanced source options. Saved inputs and API requests without this field default to custom. No preset guarantees an AI answer.",
+        "enum": ["google_web_and_ai", "google_ai_mode", "google_ai_overview", "google_ai_full", "web_search", "custom"],
+        "enumTitles": ["Google web + AI Mode - recommended, two checks, extra charges", "Google AI Mode - extra source charges", "Google AI Overview - extra source charges when captured", "Google AI Mode + AI Overview - extra source charges", "Web search - no Google AI add-ons", "Custom - use advanced source options"],
+        "prefill": "google_web_and_ai",
         "example": "google_ai_mode",
         "default": "custom"
       },
@@ -90,6 +96,7 @@
         "title": "Maximum queries",
         "type": "integer",
         "description": "Hard limit protecting the run from accidental cost growth.",
+        "prefill": 1,
         "default": 50,
         "minimum": 1,
         "maximum": 100
@@ -106,12 +113,14 @@
         "title": "Maximum source Actor charge",
         "type": "number",
         "description": "Optional cap for EACH source run, further limited by the remaining aggregate source budget. Does not include this monitor's own compute/storage charges.",
+        "prefill": 0.5,
         "minimum": 0
       },
       "maxSourceBudgetUsd": {
         "title": "Total source budget (USD)",
         "type": "number",
         "description": "Aggregate budget across source runs in this monitor run. Unknown charges consume their full reserved allowance. Monitor compute/storage charges are additional. Zero disables new source runs.",
+        "prefill": 0.5,
         "default": 2,
         "minimum": 0,
         "maximum": 1000000
@@ -120,6 +129,7 @@
         "title": "Maximum source runs",
         "type": "integer",
         "description": "Maximum source launch attempts across all queries, markets, and engines. Zero disables new launches.",
+        "prefill": 2,
         "default": 20,
         "minimum": 0,
         "maximum": 1000
@@ -128,6 +138,7 @@
         "title": "Source timeout (seconds)",
         "type": "integer",
         "description": "Platform timeout for each source run. Shortened when the monitor approaches its own timeout; active sources are aborted on local timeout when possible.",
+        "prefill": 90,
         "default": 300,
         "minimum": 5,
         "maximum": 900

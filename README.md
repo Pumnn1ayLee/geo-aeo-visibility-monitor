@@ -12,19 +12,22 @@ The default source is `apify/google-search-scraper`. The source Actor is intenti
 
 ## Choose a monitoring preset
 
-New Console inputs explicitly prefill **Google AI Mode - extra source charges**, so an empty advanced-options object no longer silently selects ordinary web search. The schema uses `prefill: google_ai_mode` and `default: custom`: the interface suggests AI collection while omitted fields in existing tasks and API requests preserve their current settings. Every preset works with your chosen brand and competitors; Notion in the live example is only sample input.
+New Console inputs prefill **Google web + AI Mode - two checks, extra charges**, so a slow AI add-on cannot discard the separately collected web evidence. The schema uses `prefill: google_web_and_ai` and `default: custom`: the interface suggests web and AI collection while omitted fields in existing tasks and API requests preserve their current settings. Every preset works with your chosen brand and competitors; Apify and Notion in the examples are only sample brands.
 
 | `monitoringPreset` | Google collection settings | Source charges |
 | --- | --- | --- |
+| `google_web_and_ai` | First a web-only source run, then an independent AI Mode source run, per query/market/source. Engine names end in `:web_search` and `:ai_mode`. | Two source runs; up to two billable snapshots per query, plus source search/AI fees. |
 | `google_ai_mode` | Enable Google AI Mode; full AI Overview capture off. | Standard search plus the source's AI Mode add-on. |
 | `google_ai_overview` | Full AI Overview capture on; AI Mode off. | Standard search plus the source's captured AI Overview add-on. Google may not show an Overview. |
 | `google_ai_full` | Enable both Google AI Mode and full AI Overview capture. | Standard search plus both applicable add-ons. |
 | `web_search` | Disable both Google AI switches. | Standard source search charges; this preset is not an AI-answer visibility test. |
 | `custom` | Preserve `sourceActorInput` and engine `inputOverrides`. | Depends on the source and enabled options. |
 
-Google presets require `apify/google-search-scraper` and control the two Google switches even when advanced options conflict. Other AI add-ons require `custom`; their response formats still require compatible normalization. For compatibility, saved inputs and API calls **without** `monitoringPreset` retain their existing collection settings (`custom`). Explicitly choose `google_ai_mode` to upgrade an existing task to AI collection. Collection changes establish a new compatible-history baseline.
+Google presets require `apify/google-search-scraper` and control the two Google switches even when advanced options conflict. The two-channel preset creates independent checks and history baselines for web and AI. If AI times out but web succeeds, the report is `partial`, its source diagnostic identifies `SOURCE_TIMEOUT`, and the web snapshot remains accessible. Missing AI measurements remain unknown. If both checks fail, the run still fails with an empty dataset. The two channels both count toward `maxSourceRuns` and share the source budget and parent fee cap. Allow at least two source runs to collect both. Other AI add-ons require `custom`; their response formats still require compatible normalization. For compatibility, saved inputs and API calls **without** `monitoringPreset` retain their existing collection settings (`custom`). Choose `google_ai_mode` for a single AI Mode check or `google_web_and_ai` for independent web and AI checks. Collection changes establish a new compatible-history baseline.
 
 For a one-query AI check, use [`examples/ai-live-input.json`](examples/ai-live-input.json). For a regular-search check, use [`examples/live-input.json`](examples/live-input.json). Both launch paid sources. See the source's current [pricing](https://apify.com/apify/google-search-scraper/pricing); source budgets do not include this monitor's fee. Presets request AI data but cannot guarantee that an answer is returned. A successful snapshot requires usable search or AI evidence; a valid search-only snapshot is still a billable visibility check and has unknown AI-answer measurements.
+
+For the recommended independent web + AI workflow, use [`examples/web-and-ai-input.json`](examples/web-and-ai-input.json). This example makes at most two paid source calls and produces at most two snapshot charges. Change the sample brand, domains and question to your own project before scheduling recurring runs.
 
 For Google, `queries` is sent as a single string according to the source's input contract. To manage the switches manually, choose `custom` and set `sourceActorInput`, for example `{"aiOverview":{"scrapeFullAiOverview":true},"aiModeSearch":{"enableAiMode":true}}`.
 
@@ -33,6 +36,8 @@ For Google, `queries` is sent as a single string according to the source's input
 Keep the existing `apify-default-dataset-item` event in Console. Only successful snapshots enter that dataset, so its event now bills successful checks only. **Summaries and error records do not incur per-result charges.** The automatic `apify-actor-start` fee remains separate, and upstream Actors can charge for failed or empty source runs. Ordinary compute/storage costs also apply according to platform pricing.
 
 At $0.01 per snapshot, 10 successful query checks produce 10 billable rows: $0.10 plus startup and upstream charges. Their summary and error diagnostics add zero result events. No-results or all-error runs have zero snapshot events, while startup/upstream costs can still apply.
+
+With `google_web_and_ai`, 10 queries in one market/source can produce 20 successful snapshots ($0.20 at $0.01 each). This intentionally performs two checks per query. If the AI run fails, that failed check adds no snapshot charge, though upstream charges can still apply.
 
 Before starting each new source run, the monitor reads **that run's** pricing and charged event counts from Apify, reserves the startup fee according to memory, and checks that one additional snapshot fits within the smaller of `ACTOR_MAX_TOTAL_CHARGE_USD` and the run's API maximum. Local delivery receipts cover delayed event counts. If a snapshot does not fit, the run stops with `parent_charge_limit` and saves its report without launching more sources. Malformed or unsupported pricing fails before paid source work. No charge request is sent manually; Apify bills dataset writes automatically. This is an event-charge guard for the parent run, separate from the source-run budget, and is not an account-wide or entire-invoice spending cap.
 
@@ -119,6 +124,10 @@ Brand mentions are detected in result text and AI answer text, excluding the use
 Analysis version 2 corrects AI Mode detection and citation classification. Snapshots include `analysisVersion: 2`; historical score deltas require matching analysis versions. The test fixture in `tests/fixtures/google-ai-mode.json` is a reduced, sanitized representation of a successful source response and contains no signed snapshot links.
 
 ## Development checks
+
+The input schema includes explicit `prefill` values for the required brand and query fields, as required by [Apify's daily Store checks](https://docs.apify.com/actors/publishing/test). Restoring the example selects Apify as a sample brand and one query, with independent web and AI Mode checks, at most two source runs, a 90-second timeout for each source, and a $0.50 shared source budget. The published workflow uses genuine upstream results for every run. Source and parent fees still apply to this live example; it does not guarantee upstream availability. These UI/test prefills do not reduce limits on existing saved inputs or API calls.
+
+The official check `OKU91PmoaAfgeLqaH` on October 21, 2026 failed because its Google AI Mode child run timed out after 277 seconds with `Nothing extracted yet`. The parent had no successful snapshots and exited with code 1. Its billing and input paths completed normally. The revised example limits each source's wait and keeps web/AI evidence independent. `SOURCE_ERRORS` includes a diagnostic code, upstream run ID/status, and channel; the parent publishes a terminal status message with these details. Source outages remain visible rather than being converted into fabricated AI measurements. After a new build passes the platform's daily check, Apify can clear its maintenance flag automatically; local tests do not establish cloud health.
 
 ```powershell
 npm test

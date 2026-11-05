@@ -162,6 +162,17 @@ test('pricing reads the current run with authentication and rejects storage misu
   assert.deepEqual(requests, ['https://api.apify.com/v2/actor-runs/current-run']);
 });
 
+test('terminal status updates carry the actual diagnostic rather than a generic exit failure', async () => {
+  const storage = new ApifyStorage({ token: 'test-token', env: { ACTOR_RUN_ID: 'run' }, fetchImpl: async (url, options) => {
+    assert.equal(url, 'https://api.apify.com/v2/actor-runs/run');
+    assert.equal(options.method, 'PUT');
+    assert.equal(options.headers.authorization, 'Bearer test-token');
+    assert.deepEqual(JSON.parse(options.body), { runId: 'run', statusMessage: 'SOURCE_TIMEOUT', isStatusMessageTerminal: true });
+    return jsonResponse({ data: { id: 'run' } });
+  } });
+  await storage.setStatusMessage('SOURCE_TIMEOUT');
+});
+
 test('reads Console input and publishes live-test snapshots using only current Actor variables', async () => {
   const liveInput = JSON.parse(await readFile(new URL('../examples/live-input.json', import.meta.url), 'utf8'));
   const env = {
@@ -181,6 +192,12 @@ test('reads Console input and publishes live-test snapshots using only current A
     assert.equal(options.headers.authorization, 'Bearer test-token');
     const { pathname, searchParams } = new URL(url);
     const method = options.method ?? 'GET';
+    if (pathname === '/v2/actor-runs/monitor-run' && method === 'PUT') {
+      const update = JSON.parse(options.body);
+      assert.equal(update.isStatusMessageTerminal, true);
+      assert.match(update.statusMessage, /SUCCEEDED: 1 successful checks, 0 source errors/);
+      return jsonResponse({ data: { id: 'monitor-run' } });
+    }
     if (pathname === '/v2/actor-runs/monitor-run') return jsonResponse({ data: {
       id: 'monitor-run', options: { memoryMbytes: 1024, maxTotalChargeUsd: 1 },
       pricingInfo: { pricingModel: 'PAY_PER_EVENT', pricingPerEvent: { actorChargeEvents: {

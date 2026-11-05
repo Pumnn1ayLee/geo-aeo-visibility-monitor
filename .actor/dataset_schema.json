@@ -8,7 +8,7 @@
       "description": "Query-level visibility and AI evidence counts for successful snapshots; unavailable measurements are left empty. Open Run report for summaries and historical changes.",
       "transformation": {
         "fields": [
-          "type", "brand", "query", "market", "engine", "visibilityScore",
+          "type", "brand", "query", "market", "engine", "monitoringChannel", "visibilityScore",
           "brandMentionedInAiResponse", "aiOwnedCitation", "aiOwnedAttachedSource",
           "aiResponseCount", "aiCitationCount", "aiAttachedSourceCount", "capturedAt"
         ]
@@ -21,6 +21,7 @@
           "query": { "label": "Query", "format": "text" },
           "market": { "label": "Market", "format": "object" },
           "engine": { "label": "Engine", "format": "text" },
+          "monitoringChannel": { "label": "Requested check", "format": "text" },
           "visibilityScore": { "label": "Visibility score", "format": "number" },
           "brandMentionedInAiResponse": { "label": "Brand in AI answer", "format": "boolean" },
           "aiOwnedCitation": { "label": "Owned AI citation", "format": "boolean" },

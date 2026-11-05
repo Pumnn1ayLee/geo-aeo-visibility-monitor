@@ -58,7 +58,10 @@ export async function run(rawInput, { sourceClient, storage, logger = console, e
       billing: billing.summary(deliveredCount(), pendingCount()),
     } }), outputContractVersion: 2,
     collection: { monitoringPreset: config.monitoringPreset,
-      snapshotsWithoutAiAnswer: state.snapshots.filter((snapshot) => snapshot.aiResponseCount === 0).length },
+      snapshotsWithoutAiAnswer: state.snapshots.filter((snapshot) => snapshot.aiResponseCount === 0).length,
+      plannedAiChecks: jobs.filter((job) => job.sourceInput.aiModeSearch?.enableAiMode || job.sourceInput.aiOverview?.scrapeFullAiOverview).length,
+      failedAiChecks: state.errors.filter((error) => jobs.some((job) => job.id === error.jobId
+        && (job.sourceInput.aiModeSearch?.enableAiMode || job.sourceInput.aiOverview?.scrapeFullAiOverview))).length },
   });
   const saveReports = async (report) => {
     await output.saveJson('RUN_REPORT', report);
@@ -100,7 +103,7 @@ export async function run(rawInput, { sourceClient, storage, logger = console, e
       if (!await deliverSnapshot(snapshot)) { stopReason = 'parent_charge_limit'; break; }
     }
     await saveReports({ ...makeReport(stopReason), status: 'running' });
-    if (config.monitoringPreset.startsWith('google_ai_')) {
+    if (config.monitoringPreset.startsWith('google_ai_') || config.monitoringPreset === 'google_web_and_ai') {
       logger.warn?.(`Monitoring preset ${config.monitoringPreset} enables paid Google AI add-ons. Source Actor charges are additional to this monitor's per-snapshot fee.`);
     }
     const parentDeadline = Date.parse(env.ACTOR_TIMEOUT_AT ?? env.APIFY_TIMEOUT_AT ?? '');
@@ -117,6 +120,7 @@ export async function run(rawInput, { sourceClient, storage, logger = console, e
         await billing.refresh();
         if (!billing.canProduce(deliveredCount())) { stopReason = 'parent_charge_limit'; break; }
         entry = { jobId: job.id, actorId: job.engine.actorId, query: job.query, market: job.market,
+          monitoringChannel: job.engine.monitoringChannel,
           status: 'reserved', allowanceUnits: allowance.allowanceUnits, createdAt: new Date(now()).toISOString(),
           timeoutSeconds: Math.min(config.sourceTimeoutSeconds, secondsLeft) };
         state.entries.push(entry);
@@ -146,7 +150,8 @@ export async function run(rawInput, { sourceClient, storage, logger = console, e
         const snapshot = analyzeSnapshot({ query: job.query, market: job.market, engine: job.engine.name,
           brand: config.brand, competitors: config.competitors, records: extractRecords(payload?.items ?? payload), includeRawSource: config.includeRawSource });
         if (!snapshot.observationPresent) throw new Error('Source returned no usable search or AI evidence; previous baseline is preserved');
-        state.snapshots.push({ ...snapshot, capturedAt: new Date(now()).toISOString(), comparisonKey: job.id, sourceActorId: job.engine.actorId, sourceRunId: entry.runId ?? null, runId });
+        state.snapshots.push({ ...snapshot, capturedAt: new Date(now()).toISOString(), comparisonKey: job.id, sourceActorId: job.engine.actorId, sourceRunId: entry.runId ?? null, runId,
+          ...(job.engine.monitoringChannel ? { monitoringChannel: job.engine.monitoringChannel } : {}) });
         entry.status = 'completed';
         entry.terminal = true;
         state.errors = state.errors.filter((item) => item.jobId !== job.id);
@@ -158,7 +163,12 @@ export async function run(rawInput, { sourceClient, storage, logger = console, e
         entry.status = uncertain ? 'unresolved' : 'failed';
         const detail = error instanceof Error ? error.message : String(error);
         state.errors = state.errors.filter((item) => item.jobId !== job.id);
-        state.errors.push({ jobId: job.id, engine: job.engine.name, actorId: job.engine.actorId, market: job.market, query: job.query, sourceRunId: entry.runId ?? null, message: detail });
+        const code = error.run?.status === 'TIMED-OUT' || /deadline|timeout|timed.out/i.test(detail) ? 'SOURCE_TIMEOUT'
+          : /no usable search or AI evidence/.test(detail) ? 'SOURCE_NO_EVIDENCE'
+          : error.run?.status === 'FAILED' ? 'SOURCE_FAILED' : error.definitiveRejection ? 'SOURCE_LAUNCH_REJECTED' : 'SOURCE_UNAVAILABLE';
+        state.errors.push({ jobId: job.id, engine: job.engine.name, actorId: job.engine.actorId, market: job.market, query: job.query,
+          monitoringChannel: job.engine.monitoringChannel, sourceRunId: entry.runId ?? null, sourceStatus: error.run?.status ?? entry.sourceStatus ?? null,
+          code, message: detail });
         logger.error?.(`Source Actor ${job.engine.actorId} failed for ${job.market.countryCode}/${job.query}: ${detail}`);
         if (uncertain) stopReason = entry.runId ? 'source_reconciliation_required' : 'ambiguous_launch';
       }
@@ -180,8 +190,19 @@ export async function run(rawInput, { sourceClient, storage, logger = console, e
     await checkpoint();
   }
   await saveReports(state.final.report);
+  if (typeof output.setStatusMessage === 'function') {
+    try { await output.setStatusMessage(runStatusMessage(state.final.report)); }
+    catch (error) { logger.warn?.(`Could not update the run status message: ${error.message}`); }
+  }
   return { config, snapshots: state.snapshots, errors: state.errors, report: state.final.report,
     items: state.snapshots.filter((snapshot) => state.deliveries[snapshot.comparisonKey]?.status === 'confirmed') };
+}
+
+export function runStatusMessage(report) {
+  const counts = `${report.snapshotCount} successful checks, ${report.errorCount} source errors`;
+  const firstError = report.errors?.[0];
+  const detail = firstError ? ` ${firstError.code ?? 'SOURCE_ERROR'}${firstError.sourceRunId ? ` (source run ${firstError.sourceRunId})` : ''}.` : '';
+  return `${report.status.toUpperCase()}: ${counts}.${detail}${report.stopReason ? ` Stop: ${report.stopReason}.` : ''} See Run report and Source errors for details.`;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

@@ -1,0 +1,16 @@
+{
+  "brand": { "name": "Apify", "aliases": [], "domains": ["apify.com"] },
+  "competitors": [],
+  "queries": ["best web scraping platforms for developers"],
+  "markets": [{ "countryCode": "US", "languageCode": "en" }],
+  "monitoringPreset": "google_web_and_ai",
+  "maxQueries": 1,
+  "maxResultsPerQuery": 10,
+  "maxSourceBudgetUsd": 0.5,
+  "maxTotalChargeUsd": 0.5,
+  "maxSourceRuns": 2,
+  "sourceTimeoutSeconds": 90,
+  "monitorId": "apify-us-web-and-ai-example",
+  "historyEnabled": true,
+  "includeRawSource": false
+}

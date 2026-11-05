@@ -1,7 +1,7 @@
 const DEFAULT_SOURCE_ACTOR = 'apify/google-search-scraper';
 const MAX_QUERIES = 100;
 const MAX_RESULTS = 100;
-export const MONITORING_PRESETS = ['google_ai_mode', 'google_ai_overview', 'google_ai_full', 'web_search', 'custom'];
+export const MONITORING_PRESETS = ['google_web_and_ai', 'google_ai_mode', 'google_ai_overview', 'google_ai_full', 'web_search', 'custom'];
 
 function objectInput(value, field) {
   if (value == null) return {};
@@ -76,11 +76,11 @@ export function normalizeInput(raw = {}) {
   const markets = (raw.markets ?? [{ countryCode: 'US', languageCode: 'en' }]).map(normalizeMarket);
   if (markets.length === 0) throw new Error('markets must contain at least one market');
 
-  const engines = (raw.engines ?? [{ name: 'google', actorId: DEFAULT_SOURCE_ACTOR }]).map(normalizeEngine);
+  let engines = (raw.engines ?? [{ name: 'google', actorId: DEFAULT_SOURCE_ACTOR }]).map(normalizeEngine);
   if (engines.length === 0) throw new Error('engines must contain at least one source Actor');
   const sourceActorInput = objectInput(raw.sourceActorInput, 'sourceActorInput');
   // Keep older saved inputs and API clients on their explicitly configured collection settings.
-  // New Console inputs prefill google_ai_mode; the platform default remains custom for older clients.
+  // New Console inputs prefill web + AI; the platform default remains custom for older clients.
   const monitoringPreset = raw.monitoringPreset ?? 'custom';
   if (!MONITORING_PRESETS.includes(monitoringPreset)) throw new Error(`monitoringPreset must be one of: ${MONITORING_PRESETS.join(', ')}`);
   if (monitoringPreset !== 'custom' && engines.some((engine) => engine.actorId.replace('~', '/') !== DEFAULT_SOURCE_ACTOR)) {
@@ -89,6 +89,13 @@ export function normalizeInput(raw = {}) {
   if (monitoringPreset !== 'custom' && [sourceActorInput, ...engines.map((engine) => engine.inputOverrides)]
     .some((options) => ['perplexitySearch', 'chatGptSearch', 'copilotSearch', 'geminiSearch'].some((key) => key in options))) {
     throw new Error('Other AI add-ons require monitoringPreset: custom so their additional charges are explicit.');
+  }
+  if (monitoringPreset === 'google_web_and_ai') {
+    // Independent source runs prevent a stalled AI add-on from discarding web evidence.
+    engines = engines.flatMap((engine) => [
+      { ...engine, name: `${engine.name}:web_search`, monitoringChannel: 'web_search' },
+      { ...engine, name: `${engine.name}:ai_mode`, monitoringChannel: 'google_ai_mode' },
+    ]);
   }
 
   const maxQueries = Math.floor(boundedNumber(raw.maxQueries, 'maxQueries', queries.length, 1, MAX_QUERIES));
@@ -139,9 +146,10 @@ export function buildSourceInput(config, query, market, engine) {
     ...engine.inputOverrides,
   };
   if (config.monitoringPreset !== 'custom') {
+    const preset = engine.monitoringChannel ?? config.monitoringPreset;
     // The selected preset owns the two Google switches; advanced options cannot silently disable it.
-    input.aiModeSearch = { ...input.aiModeSearch, enableAiMode: ['google_ai_mode', 'google_ai_full'].includes(config.monitoringPreset) };
-    input.aiOverview = { ...input.aiOverview, scrapeFullAiOverview: ['google_ai_overview', 'google_ai_full'].includes(config.monitoringPreset) };
+    input.aiModeSearch = { ...input.aiModeSearch, enableAiMode: ['google_ai_mode', 'google_ai_full'].includes(preset) };
+    input.aiOverview = { ...input.aiOverview, scrapeFullAiOverview: ['google_ai_overview', 'google_ai_full'].includes(preset) };
   }
   return input;
 }

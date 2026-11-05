@@ -35,6 +35,16 @@ export class ApifyStorage {
     return body?.data ?? body;
   }
 
+  async setStatusMessage(statusMessage) {
+    if (!this.runId) return;
+    const response = await this.fetch(`${this.baseUrl}/v2/actor-runs/${encodeURIComponent(this.runId)}`, {
+      method: 'PUT', headers: { authorization: `Bearer ${this.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ runId: this.runId, statusMessage, isStatusMessageTerminal: true }),
+      signal: AbortSignal.timeout(15000),
+    });
+    await parseResponse(response);
+  }
+
   async hasSnapshot(runId, comparisonKey) {
     // Dataset writes are not idempotent. Confirm an interrupted write before allowing any replay.
     for (let offset = 0; ; offset += 1000) {
